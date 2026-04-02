@@ -2,11 +2,11 @@
 
 === SPRINT 0 — Setup & Repo (2-4h) ===
 
-[T-01] Criar repo GitHub + linkar Vercel .......................... [ ]
+[T-01] Criar repo GitHub + linkar Vercel .......................... [x]
 [T-02] Setup Next.js local + Tailwind + TypeScript ................ [x]
 [T-03] Provisionar Neon database + connection string .............. [ ]
 [T-04] Configurar Clerk auth (sign-in rápido) .................... [ ]
-[T-05] Criar .env.local via vercel env pull ....................... [ ]
+[T-05] Criar .env.local via vercel env pull ....................... [x]
 
 === SPRINT 1 — Backend & Nekt Polling (6-8h) ===
 

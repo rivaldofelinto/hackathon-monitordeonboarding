@@ -229,9 +229,12 @@ async function fetchNektRaw(): Promise<NektRawResult> {
         const data = await response.json();
         result[pipeName] = { rows: data.rows ?? [], tableName };
       } else {
+        const body = await response.text().catch(() => '');
+        console.error(`[NektRaw] ${pipeName} → ${response.status}: ${body.slice(0, 200)}`);
         result[pipeName] = { rows: [], tableName };
       }
-    } catch {
+    } catch (err) {
+      console.error(`[NektRaw] ${pipeName} → exception:`, err);
       result[pipeName] = { rows: [], tableName };
     }
   }

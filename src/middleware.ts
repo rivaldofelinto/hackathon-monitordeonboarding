@@ -1,16 +1,8 @@
-import { clerkMiddleware } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
 
-function isPlaywrightTest(request: NextRequest) {
-  return request.headers.get('x-playwright-test') === '1'
+export function middleware() {
+  return NextResponse.next()
 }
-
-export default clerkMiddleware((auth, request) => {
-  if (isPlaywrightTest(request)) {
-    return NextResponse.next()
-  }
-})
 
 export const config = {
   matcher: [

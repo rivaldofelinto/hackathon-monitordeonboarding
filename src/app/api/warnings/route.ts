@@ -26,7 +26,6 @@ export async function GET() {
           json_agg(json_build_object('phase', metadata->>'phase', 'cnt', 1)) as by_phase
         FROM properties
         WHERE metadata->>'pipe' = '4'
-          AND codigo_imovel !~ '^[0-9]+$'
           AND metadata->>'phase' IN (
             'Fase 0 - Início',
             'Fase 1 - Contato Franquia',
@@ -44,7 +43,6 @@ export async function GET() {
             FILTER (WHERE metadata->>'title' IS NOT NULL) as titles
         FROM properties
         WHERE metadata->>'pipe' = '3'
-          AND codigo_imovel !~ '^[0-9]+$'
           AND metadata->>'phase' IN ('Fase 0 - Início', 'Fase 1 - Agendamento')
         GROUP BY phase
         ORDER BY cnt DESC
@@ -59,7 +57,6 @@ export async function GET() {
           MAX(EXTRACT(EPOCH FROM NOW() - updated_at) / 86400)::int as max_days
         FROM properties
         WHERE metadata->>'pipe' = '3'
-          AND codigo_imovel !~ '^[0-9]+$'
           AND metadata->>'phase' = 'Fase 2 - Agendada'
           AND updated_at < NOW() - INTERVAL '2 days'
       `),

@@ -5,7 +5,7 @@ import { count, and, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 // Pipe Mãe = pipe '1' (Pipe 1 - Implantação/Mãe, Pipefy ID 303781436)
-const PIPE_MAE = sql`${properties.metadata}->>'pipe' = '1' AND ${properties.codigo_imovel} !~ '^[0-9]+$'`
+const PIPE_MAE = sql`${properties.metadata}->>'pipe' = '1'`
 
 // Phase group labels (must match order of phaseGroupQueries below)
 const PHASE_GROUP_LABELS = [

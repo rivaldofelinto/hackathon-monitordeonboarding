@@ -210,23 +210,53 @@ interface NektRawRow {
 type NektRawResult = Record<string, { rows: NektRawRow[]; tableName: string }>;
 
 /**
- * Parse MCP HTTP Streamable response (JSON or SSE) into tool result text
+ * Parse MCP HTTP Streamable SSE stream into tool result text
  */
-async function parseMcpResponse(response: Response): Promise<string | null> {
-  const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("text/event-stream")) {
-    const text = await response.text();
-    for (const line of text.split("\n")) {
-      if (!line.startsWith("data: ")) continue;
-      try {
-        const msg = JSON.parse(line.slice(6));
-        if (msg.result?.content?.[0]?.text) return msg.result.content[0].text;
-      } catch { /* skip */ }
-    }
+function parseSseText(text: string): string | null {
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("data: ")) continue;
+    try {
+      const msg = JSON.parse(line.slice(6));
+      if (msg.result?.content?.[0]?.text) return msg.result.content[0].text;
+    } catch { /* skip */ }
+  }
+  return null;
+}
+
+/**
+ * Initialize MCP HTTP Streamable session, return session ID
+ */
+async function initMcpSession(nektUrl: string, nektToken: string): Promise<string | null> {
+  const response = await fetch(nektUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${nektToken}`,
+      "Accept": "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "initialize",
+      params: {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "monitor-onboarding", version: "1.0" },
+      },
+      id: 0,
+    }),
+  });
+  if (!response.ok) {
+    console.error(`[NektRaw] MCP init failed: ${response.status}`);
     return null;
   }
-  const json = await response.json();
-  return json.result?.content?.[0]?.text ?? null;
+  const sessionId = response.headers.get("mcp-session-id");
+  if (!sessionId) {
+    console.error("[NektRaw] MCP init: no session ID in response headers");
+    return null;
+  }
+  // Drain the SSE body to avoid connection leaks
+  await response.text().catch(() => {});
+  return sessionId;
 }
 
 async function fetchNektRaw(): Promise<NektRawResult> {
@@ -236,15 +266,23 @@ async function fetchNektRaw(): Promise<NektRawResult> {
 
   if (!nektUrl || !nektToken) return result;
 
+  // MCP HTTP Streamable requires session initialization before tools/call
+  const sessionId = await initMcpSession(nektUrl, nektToken);
+  if (!sessionId) {
+    console.error("[NektRaw] Could not initialize MCP session, aborting sync");
+    return result;
+  }
+  console.log(`[NektRaw] MCP session: ${sessionId}`);
+
   for (const [pipeName, tableName] of Object.entries(ONBOARDING_PIPES)) {
     try {
-      // MCP HTTP Streamable: POST with JSON-RPC tools/call
       const response = await fetch(nektUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${nektToken}`,
           "Accept": "application/json, text/event-stream",
+          "Mcp-Session-Id": sessionId,
         },
         body: JSON.stringify({
           jsonrpc: "2.0",
@@ -260,7 +298,8 @@ async function fetchNektRaw(): Promise<NektRawResult> {
       });
 
       if (response.ok) {
-        const text = await parseMcpResponse(response);
+        const rawText = await response.text();
+        const text = parseSseText(rawText);
         if (text) {
           const parsed = JSON.parse(text) as { columns?: string[]; data?: string[][] };
           const rows: NektRawRow[] = (parsed.data ?? []).map((row) => ({

@@ -335,7 +335,7 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
 
   for (const [pipeName, { rows, tableName }] of Object.entries(rawData)) {
     for (const row of rows) {
-      if (!row.title) continue;
+      if (!row.title || String(row.title).length > 50) continue;
       let phase = "";
       const match = String(row.current_phase ?? "").match(/name=([^,}]+)/);
       if (match?.[1]) phase = match[1].trim();

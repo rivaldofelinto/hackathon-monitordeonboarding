@@ -11,7 +11,7 @@
 === SPRINT 1 — Backend & Nekt Polling (6-8h) ===
 
 [T-06] Criar schema Drizzle (properties, stages, activities, sync_log) .. [x]
-[T-07] Rodar migrations em Neon .................................... [~] (script pronto, connection timeout)
+[T-07] Rodar migrations em Neon .................................... [x]
 [T-08] Implementar GET /api/properties (lista agregada) ............ [x]
 [T-09] Parser: 7 Pipefy → schema normalizado (validação FK) ........ [x]
 [T-10] Nekt polling cron job (05h/12h) + retry logic ............... [x]

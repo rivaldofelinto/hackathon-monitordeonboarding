@@ -202,7 +202,6 @@ async function retryWithBackoff<T>(
 interface NektRawRow {
   title: string;
   current_phase: string;
-  metadata: Record<string, unknown>;
   done: boolean;
   late: boolean;
   overdue: boolean;
@@ -223,7 +222,7 @@ async function fetchNektRaw(): Promise<NektRawResult> {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${nektToken}` },
         body: JSON.stringify({
-          query: `SELECT title, current_phase, metadata, done, late, overdue FROM nekt_trusted.${tableName} LIMIT 5000`,
+          query: `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} LIMIT 5000`,
         }),
       });
       if (response.ok) {
@@ -249,20 +248,22 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
       const match = String(row.current_phase ?? "").match(/name=([^,}]+)/);
       if (match?.[1]) phase = match[1].trim();
 
+      const patch: Record<string, unknown> = {
+        pipe: PIPE_IDS[tableName] ?? "",
+        pipe_name: pipeName,
+        title: String(row.title),
+        done: Boolean(row.done),
+        late: Boolean(row.late),
+        overdue: Boolean(row.overdue),
+      };
+      if (phase) patch.phase = phase;
+
       mapped.push({
         codigo_imovel: String(row.title),
         endereco: "",
         cidade: "",
         uf: "",
-        metadata: {
-          ...(row.metadata ?? {}),
-          pipe: PIPE_IDS[tableName] ?? "",
-          pipe_name: pipeName,
-          done: Boolean(row.done),
-          late: Boolean(row.late),
-          overdue: Boolean(row.overdue),
-          ...(phase ? { phase } : {}),
-        },
+        metadata: patch,
       });
     }
   }
@@ -273,7 +274,8 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
       .values(mapped.slice(i, i + 200))
       .onConflictDoUpdate({
         target: properties.codigo_imovel,
-        set: { metadata: sql`excluded.metadata`, updated_at: sql`now()` },
+        // Merge: preserva campos existentes (link_pipefy, link_fotos, turno) e atualiza o patch
+        set: { metadata: sql`${properties.metadata} || excluded.metadata`, updated_at: sql`now()` },
       });
   }
 

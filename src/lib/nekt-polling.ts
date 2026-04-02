@@ -427,7 +427,9 @@ export async function syncNekt(config = DEFAULT_CONFIG): Promise<SyncResult> {
       execution_time_ms: executionTime,
     };
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
+    const cause = (error as any)?.cause;
+    const causeMsg = cause instanceof Error ? ` | cause: ${cause.message}` : cause ? ` | cause: ${String(cause)}` : "";
+    const errorMsg = (error instanceof Error ? error.message : String(error)) + causeMsg;
 
     // Log falha
     await db.update(sync_log).set({

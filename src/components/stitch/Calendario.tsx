@@ -209,9 +209,14 @@ function CalendarioInner({ vistoria = [], fotografia = [] }: CalendarioProps) {
                           <p className="font-semibold text-slate-900 text-sm truncate">{item.title}</p>
                           <p className="text-xs text-slate-500 truncate">{item.phase}</p>
                           {item.turno && <p className="text-xs text-slate-400">Turno: {item.turno}</p>}
-                          {item.link_pipefy && (
-                            <a href={item.link_pipefy} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-slate-600">🔗 Pipefy</a>
-                          )}
+                          <div className="flex gap-3 mt-1">
+                            {item.link_fotos && (
+                              <a href={item.link_fotos} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-600 hover:underline font-medium">📁 Pasta de fotos</a>
+                            )}
+                            {item.link_pipefy && (
+                              <a href={item.link_pipefy} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-slate-600">🔗 Pipefy</a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

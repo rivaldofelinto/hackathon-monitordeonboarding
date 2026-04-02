@@ -19,12 +19,12 @@
 
 === SPRINT 2 — Frontend & Stitch Integration (6-8h) ===
 
-[T-12] Receber Stitch frontend de Rivaldo .......................... [ ]
-[T-13] Integrar Stitch components → Next.js (sem erros) ............ [ ]
-[T-14] Dashboard 4-telas (layout básico) ........................... [ ]
-[T-15] Data binding: API → Dashboard atualiza ....................... [ ]
-[T-16] Implementar filtros (responsável, status, fase) ............. [ ]
-[T-17] Mobile responsiveness (Lighthouse >= 70) .................... [ ]
+[T-12] Receber Stitch frontend de Rivaldo .......................... [x]
+[T-13] Integrar Stitch components → Next.js (sem erros) ............ [x]
+[T-14] Dashboard 4-telas (layout básico) ........................... [x]
+[T-15] Data binding: API → Dashboard atualiza ....................... [x]
+[T-16] Implementar filtros (responsável, status, fase) ............. [x]
+[T-17] Mobile responsiveness (Lighthouse >= 70) .................... [~]
 
 === SPRINT 3 — Alertas & Testes (2-3h) ===
 

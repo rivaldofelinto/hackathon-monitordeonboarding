@@ -6,7 +6,8 @@
 
 import { db } from "@/db/client";
 import { sync_log } from "@/db/schema";
-import { parseAllPipelines, prepareBatchInsert } from "./pipefy-parser";
+import { parseAllPipelines } from "./pipefy-parser";
+import type { PipefyCard } from "./pipefy-parser";
 
 interface SyncConfig {
   max_retries: number;
@@ -32,10 +33,66 @@ interface SyncResult {
 }
 
 /**
- * Nekt API client via MCP
- * Query 7 pipelines from Nekt data warehouse
+ * Real Pipefy onboarding pipes in Nekt data warehouse
+ * Tables confirmed via MCP: SELECT table_name FROM information_schema.tables WHERE table_schema = 'nekt_trusted'
  */
-async function fetchFromNekt(retryCount = 0): Promise<Record<string, any[]>> {
+const ONBOARDING_PIPES: Record<string, string> = {
+  "PIPE 0 - Onboarding proprietário": "pipefy_szs_all_cards_303807224",
+  "PIPE 1 - Implantação": "pipefy_szs_all_cards_303781436",
+  "PIPE 2 - Adequação": "pipefy_szs_all_cards_303828424",
+  "PIPE 3 - Vistorias": "pipefy_szs_all_cards_302290867",
+  "PIPE 4 - Fotos Profissionais": "pipefy_szs_all_cards_302290880",
+  "PIPE 5 - Criação de Anúncios": "pipefy_szs_all_cards_303024105",
+  "PIPE 5.1 - Atualização de Anúncios": "pipefy_szs_all_cards_303024130",
+};
+
+/**
+ * Convert a raw Nekt row to PipefyCard format expected by pipefy-parser.ts
+ * Nekt stores current_phase as a string like "{id=123, name=Go Live}"
+ */
+function nektRowToPipefyCard(row: Record<string, any>): PipefyCard {
+  // Parse current_phase string "{id=123, name=Go Live}" → { name: "Go Live" }
+  let currentPhaseName = "Desconhecido";
+  if (row.current_phase && typeof row.current_phase === "string") {
+    const match = row.current_phase.match(/name=([^,}]+)/);
+    if (match?.[1]) currentPhaseName = match[1].trim();
+  } else if (row.current_phase?.name) {
+    currentPhaseName = row.current_phase.name;
+  }
+
+  // Parse fields array string → array of {name, value}
+  let customFields: Array<{ name: string; value: string | null }> = [];
+  if (row.fields && typeof row.fields === "string") {
+    try {
+      // Fields format: "[{name=Imóvel, native_value=PSO0304, value=PSO0304, ...}]"
+      // title IS the codigo_imovel, so we inject it as a custom field
+      customFields = [{ name: "Código Imóvel", value: row.title || null }];
+    } catch {
+      customFields = [];
+    }
+  }
+  // Always ensure codigo_imovel is available (title = codigo_imovel in Pipefy)
+  if (!customFields.some((f) => f.name.toLowerCase().includes("imovel"))) {
+    customFields.push({ name: "Código Imóvel", value: row.title || null });
+  }
+
+  return {
+    id: String(row.id || ""),
+    title: String(row.title || ""),
+    current_phase: { name: currentPhaseName },
+    custom_fields: customFields,
+    due_date: row.due_date || undefined,
+    created_at: row.created_at || new Date().toISOString(),
+    updated_at: row.updated_at || new Date().toISOString(),
+    comments_count: Number(row.comments_count) || 0,
+    attachments_count: 0,
+  };
+}
+
+/**
+ * Nekt API client — queries real Pipefy onboarding tables
+ */
+async function fetchFromNekt(retryCount = 0): Promise<Record<string, PipefyCard[]>> {
   try {
     const nektUrl = process.env.NEKT_API_URL;
     const nektToken = process.env.NEKT_API_KEY;
@@ -44,64 +101,45 @@ async function fetchFromNekt(retryCount = 0): Promise<Record<string, any[]>> {
       console.warn(
         "[Nekt] Missing NEKT_API_URL or NEKT_API_KEY, returning empty data"
       );
-      return {
-        documentacao: [],
-        aprovacao_legal: [],
-        validacao_financeira: [],
-        integracao_sistema: [],
-        testes_unitarios: [],
-        qa_validacao: [],
-        golive: [],
-      };
+      return Object.fromEntries(Object.keys(ONBOARDING_PIPES).map((k) => [k, []]));
     }
 
     console.log(`[Nekt] Fetching data (attempt ${retryCount + 1})...`);
 
-    // Query 7 pipelines via Nekt MCP
-    const tables = [
-      "documentacao",
-      "aprovacao_legal",
-      "validacao_financeira",
-      "integracao_sistema",
-      "testes_unitarios",
-      "qa_validacao",
-      "golive",
-    ];
+    const result: Record<string, PipefyCard[]> = {};
 
-    const result: Record<string, any[]> = {};
-
-    for (const table of tables) {
+    for (const [pipeName, tableName] of Object.entries(ONBOARDING_PIPES)) {
       try {
-        // Query table via Nekt API
-        const response = await fetch(
-          `${nektUrl}/query`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${nektToken}`,
-            },
-            body: JSON.stringify({
-              query: `SELECT * FROM ${table} LIMIT 1000`,
-            }),
-          }
-        );
+        const response = await fetch(`${nektUrl}/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${nektToken}`,
+          },
+          body: JSON.stringify({
+            query: `SELECT id, title, current_phase, fields, created_at, updated_at, comments_count, done, late, overdue FROM nekt_trusted.${tableName} LIMIT 1000`,
+          }),
+        });
 
         if (response.ok) {
           const data = await response.json();
-          result[table] = data.rows || [];
+          const rows = data.rows || [];
+          const cards = rows.map((row: Record<string, any>) =>
+            nektRowToPipefyCard(row)
+          );
+          result[pipeName] = cards;
           console.log(
-            `[Nekt] Fetched ${result[table].length} items from ${table}`
+            `[Nekt] Fetched ${cards.length} cards from ${pipeName}`
           );
         } else {
           console.warn(
-            `[Nekt] Failed to fetch ${table}: ${response.status} ${response.statusText}`
+            `[Nekt] Failed to fetch ${pipeName}: ${response.status} ${response.statusText}`
           );
-          result[table] = [];
+          result[pipeName] = [];
         }
       } catch (tableError) {
-        console.warn(`[Nekt] Error fetching ${table}:`, tableError);
-        result[table] = [];
+        console.warn(`[Nekt] Error fetching ${pipeName}:`, tableError);
+        result[pipeName] = [];
       }
     }
 
@@ -163,7 +201,7 @@ export async function syncNekt(config = DEFAULT_CONFIG): Promise<SyncResult> {
     console.log("[Nekt] Starting sync...");
 
     // Log início da sincronização
-    const syncLogEntry = await db.insert(sync_log).values({
+    await db.insert(sync_log).values({
       sync_type: "nekt",
       started_at: new Date(),
       status: "running",

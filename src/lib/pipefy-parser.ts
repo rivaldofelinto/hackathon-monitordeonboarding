@@ -44,13 +44,13 @@ export interface NormalizedStage {
  * Exemplo: Pipeline "Documentação" com 4 fases mapeia para stages 1-4
  */
 const PIPELINE_STAGE_MAP: Record<string, { start: number; name: string }> = {
-  "Documentação": { start: 1, name: "Documentação" },
-  "Aprovação Legal": { start: 5, name: "Aprovação Legal" },
-  "Validação Financeira": { start: 9, name: "Validação Financeira" },
-  "Integração Sistema": { start: 13, name: "Integração Sistema" },
-  "Testes Unitários": { start: 16, name: "Testes Unitários" },
-  "QA & Validação": { start: 19, name: "QA & Validação" },
-  "Go-Live": { start: 22, name: "Go-Live" },
+  "PIPE 0 - Onboarding proprietário": { start: 1, name: "Onboarding Proprietário" },
+  "PIPE 1 - Implantação": { start: 4, name: "Implantação" },
+  "PIPE 2 - Adequação": { start: 7, name: "Adequação" },
+  "PIPE 3 - Vistorias": { start: 10, name: "Vistorias" },
+  "PIPE 4 - Fotos Profissionais": { start: 13, name: "Fotos Profissionais" },
+  "PIPE 5 - Criação de Anúncios": { start: 16, name: "Criação de Anúncios" },
+  "PIPE 5.1 - Atualização de Anúncios": { start: 20, name: "Atualização de Anúncios" },
 };
 
 /**

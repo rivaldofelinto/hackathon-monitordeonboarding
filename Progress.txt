@@ -4,8 +4,8 @@
 
 [T-01] Criar repo GitHub + linkar Vercel .......................... [x]
 [T-02] Setup Next.js local + Tailwind + TypeScript ................ [x]
-[T-03] Provisionar Neon database + connection string .............. [ ]
-[T-04] Configurar Clerk auth (sign-in rápido) .................... [ ]
+[T-03] Provisionar Neon database + connection string .............. [x]
+[T-04] Configurar Clerk auth (sign-in rápido) .................... [x]
 [T-05] Criar .env.local via vercel env pull ....................... [x]
 
 === SPRINT 1 — Backend & Nekt Polling (6-8h) ===

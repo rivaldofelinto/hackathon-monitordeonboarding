@@ -32,27 +32,80 @@ interface SyncResult {
 }
 
 /**
- * Dummy Nekt API client
- * Em produção, usaria SDK da Nekt oficial
+ * Nekt API client via MCP
+ * Query 7 pipelines from Nekt data warehouse
  */
 async function fetchFromNekt(retryCount = 0): Promise<Record<string, any[]>> {
   try {
-    // TODO: Implementar chamada real à Nekt API
-    // const response = await fetch('https://api.nekt.com/v1/...');
-    // return await response.json();
+    const nektUrl = process.env.NEKT_API_URL;
+    const nektToken = process.env.NEKT_API_KEY;
+
+    if (!nektUrl || !nektToken) {
+      console.warn(
+        "[Nekt] Missing NEKT_API_URL or NEKT_API_KEY, returning empty data"
+      );
+      return {
+        documentacao: [],
+        aprovacao_legal: [],
+        validacao_financeira: [],
+        integracao_sistema: [],
+        testes_unitarios: [],
+        qa_validacao: [],
+        golive: [],
+      };
+    }
 
     console.log(`[Nekt] Fetching data (attempt ${retryCount + 1})...`);
 
-    // Mock data para MVP
-    return {
-      documentacao: [],
-      aprovacao_legal: [],
-      validacao_financeira: [],
-      integracao_sistema: [],
-      testes_unitarios: [],
-      qa_validacao: [],
-      golive: [],
-    };
+    // Query 7 pipelines via Nekt MCP
+    const tables = [
+      "documentacao",
+      "aprovacao_legal",
+      "validacao_financeira",
+      "integracao_sistema",
+      "testes_unitarios",
+      "qa_validacao",
+      "golive",
+    ];
+
+    const result: Record<string, any[]> = {};
+
+    for (const table of tables) {
+      try {
+        // Query table via Nekt API
+        const response = await fetch(
+          `${nektUrl}/query`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${nektToken}`,
+            },
+            body: JSON.stringify({
+              query: `SELECT * FROM ${table} LIMIT 1000`,
+            }),
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          result[table] = data.rows || [];
+          console.log(
+            `[Nekt] Fetched ${result[table].length} items from ${table}`
+          );
+        } else {
+          console.warn(
+            `[Nekt] Failed to fetch ${table}: ${response.status} ${response.statusText}`
+          );
+          result[table] = [];
+        }
+      } catch (tableError) {
+        console.warn(`[Nekt] Error fetching ${table}:`, tableError);
+        result[table] = [];
+      }
+    }
+
+    return result;
   } catch (error) {
     console.error(`[Nekt] Fetch error:`, error);
     throw error;

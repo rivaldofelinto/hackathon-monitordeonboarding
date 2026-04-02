@@ -329,7 +329,9 @@ async function fetchNektRaw(): Promise<NektRawResult> {
 }
 
 async function upsertProperties(rawData: NektRawResult): Promise<number> {
-  const mapped: Array<{ codigo_imovel: string; endereco: string; cidade: string; uf: string; metadata: unknown }> = [];
+  // Use Map to deduplicate by codigo_imovel — same property can appear in multiple pipes
+  // Last pipe processed wins (pipes are ordered: 0→5.1, so pipe-specific data overwrites pipe mãe)
+  const seen = new Map<string, { codigo_imovel: string; endereco: string; cidade: string; uf: string; metadata: unknown }>();
 
   for (const [pipeName, { rows, tableName }] of Object.entries(rawData)) {
     for (const row of rows) {
@@ -348,7 +350,7 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
       };
       if (phase) patch.phase = phase;
 
-      mapped.push({
+      seen.set(String(row.title), {
         codigo_imovel: String(row.title),
         endereco: "",
         cidade: "",
@@ -357,6 +359,8 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
       });
     }
   }
+
+  const mapped = Array.from(seen.values());
 
   for (let i = 0; i < mapped.length; i += 200) {
     await db

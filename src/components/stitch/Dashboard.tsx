@@ -88,7 +88,8 @@ const PHASE_GROUPS = [
     phases: ['Fase 4 - Configuração do imóvel/Taxa de limpeza', 'Fase 5 - Adequação/ Enxoval'],
   },
   {
-    label: 'Em Ativação',
+    label: 'INDO PARA ATIVAÇÃO',
+    subtitle: 'contém imóveis em revisão',
     color: 'bg-violet-50 text-violet-700 border-violet-200',
     bar: 'bg-violet-500',
     phases: ['Fase 6 - Handover', 'Fase 7 - Revisão/Limpeza/Fotos amadoras', 'Fase 8 - Ativação de Anúncio'],
@@ -247,8 +248,11 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {phaseGroupCounts.map(group => (
             <div key={group.label} className={`border rounded-xl p-4 ${group.color}`}>
-              <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-1 leading-tight">{group.label}</p>
-              <p className="text-3xl font-extrabold">{group.count.toLocaleString('pt-BR')}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide opacity-70 leading-tight">{group.label}</p>
+              {'subtitle' in group && group.subtitle && (
+                <p className="text-[10px] opacity-50 mb-1 leading-tight">{group.subtitle as string}</p>
+              )}
+              <p className="text-3xl font-extrabold mt-1">{group.count.toLocaleString('pt-BR')}</p>
             </div>
           ))}
         </div>

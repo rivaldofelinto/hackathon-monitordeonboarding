@@ -27,8 +27,7 @@ export function StitchLayout({ children }: { children: React.ReactNode }) {
         }`}
       >
         <div className="px-6 mb-10 whitespace-nowrap">
-          <h1 className="text-xl font-bold text-[#000e24] tracking-tight font-headline">Monitor</h1>
-          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Onboarding</p>
+          <img src="/seazone-logo.png" alt="Seazone" className="h-10 w-auto" />
         </div>
 
         <nav className="flex-1 space-y-1 px-3 overflow-y-auto">

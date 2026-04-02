@@ -9,21 +9,76 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch(`${nektUrl}/query`, {
+    // Step 1: Initialize MCP session
+    const initRes = await fetch(nektUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${nektToken}` },
-      body: JSON.stringify({ query: 'SELECT title, done, late FROM nekt_trusted.pipefy_szs_all_cards_303781436 LIMIT 3' }),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nektToken}`,
+        'Accept': 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'test', version: '1.0' },
+        },
+        id: 0,
+      }),
     })
 
-    const text = await response.text()
+    const sessionId = initRes.headers.get('mcp-session-id')
+    const initBody = await initRes.text().catch(() => '')
+
+    if (!initRes.ok || !sessionId) {
+      return NextResponse.json({
+        step: 'init',
+        status: initRes.status,
+        ok: initRes.ok,
+        session_id: sessionId,
+        body_preview: initBody.slice(0, 300),
+      })
+    }
+
+    // Step 2: Execute SQL
+    const queryRes = await fetch(nektUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${nektToken}`,
+        'Accept': 'application/json, text/event-stream',
+        'Mcp-Session-Id': sessionId,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          name: 'execute_sql',
+          arguments: {
+            sql_query: 'SELECT title, current_phase, done, late, overdue FROM nekt_trusted.pipefy_szs_all_cards_303781436 WHERE done = false LIMIT 3',
+          },
+        },
+        id: 1,
+      }),
+    })
+
+    const queryBody = await queryRes.text().catch(() => '')
     let parsed: unknown = null
-    try { parsed = JSON.parse(text) } catch { /* not json */ }
+    for (const line of queryBody.split('\n')) {
+      if (!line.startsWith('data: ')) continue
+      try { parsed = JSON.parse(line.slice(6)) } catch { /* skip */ }
+    }
 
     return NextResponse.json({
-      status: response.status,
-      ok: response.ok,
-      body_preview: text.slice(0, 500),
-      parsed_keys: parsed && typeof parsed === 'object' ? Object.keys(parsed as object) : null,
+      step: 'query',
+      init_status: initRes.status,
+      session_id: sessionId,
+      query_status: queryRes.status,
+      query_ok: queryRes.ok,
+      body_preview: queryBody.slice(0, 500),
+      parsed_result: parsed,
     })
   } catch (err) {
     return NextResponse.json({ exception: String(err) }, { status: 500 })

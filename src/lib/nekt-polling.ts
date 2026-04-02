@@ -334,14 +334,15 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
   const seen = new Map<string, { codigo_imovel: string; endereco: string; cidade: string; uf: string; metadata: unknown }>();
 
   for (const [pipeName, { rows, tableName }] of Object.entries(rawData)) {
+    const pipeId = PIPE_IDS[tableName] ?? "";
     for (const row of rows) {
-      if (!row.title || String(row.title).length > 50) continue;
+      if (!row.title || String(row.title).length > 46) continue;
       let phase = "";
       const match = String(row.current_phase ?? "").match(/name=([^,}]+)/);
       if (match?.[1]) phase = match[1].trim();
 
       const patch: Record<string, unknown> = {
-        pipe: PIPE_IDS[tableName] ?? "",
+        pipe: pipeId,
         pipe_name: pipeName,
         title: String(row.title),
         done: Boolean(row.done),
@@ -350,8 +351,10 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
       };
       if (phase) patch.phase = phase;
 
-      seen.set(String(row.title), {
-        codigo_imovel: String(row.title),
+      // Composite key: "MSU0301_1" — prevents cross-pipe overwrite for same property
+      const compositeKey = `${String(row.title)}_${pipeId}`;
+      seen.set(compositeKey, {
+        codigo_imovel: compositeKey,
         endereco: "",
         cidade: "",
         uf: "",

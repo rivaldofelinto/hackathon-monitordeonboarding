@@ -1,0 +1,59 @@
+version: '3.9'
+
+services:
+  # ========================================
+  # MONITOR ONBOARDING — Profile: onboarding
+  # ========================================
+
+  onboarding-db:
+    profiles: ["onboarding", "all"]
+    image: postgres:16-alpine
+    container_name: monitor-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: monitor_user
+      POSTGRES_PASSWORD: monitor_pass
+      POSTGRES_DB: monitor_onboarding
+    volumes:
+      - onboarding-db-data:/var/lib/postgresql/data
+    networks:
+      - onboarding-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitor_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  onboarding-frontend:
+    profiles: ["onboarding", "all"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: monitor-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - DATABASE_URL=postgresql://monitor_user:monitor_pass@onboarding-db:5432/monitor_onboarding
+      - NEXT_PUBLIC_APP_ENV=development
+      - DEBUG=true
+    env_file:
+      - path: .env.local
+        required: false
+    depends_on:
+      onboarding-db:
+        condition: service_healthy
+    networks:
+      - onboarding-network
+
+networks:
+  onboarding-network:
+    driver: bridge
+
+volumes:
+  onboarding-db-data:
+    driver: local

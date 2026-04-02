@@ -1,0 +1,52 @@
+=== PROGRESS: monitor-onboarding — Monitor de Onboarding ===
+
+=== SPRINT 0 — Setup & Repo (2-4h) ===
+
+[T-01] Criar repo GitHub + linkar Vercel .......................... [ ]
+[T-02] Setup Next.js local + Tailwind + TypeScript ................ [x]
+[T-03] Provisionar Neon database + connection string .............. [ ]
+[T-04] Configurar Clerk auth (sign-in rápido) .................... [ ]
+[T-05] Criar .env.local via vercel env pull ....................... [ ]
+
+=== SPRINT 1 — Backend & Nekt Polling (6-8h) ===
+
+[T-06] Criar schema Drizzle (properties, stages, activities, sync_log) .. [ ]
+[T-07] Rodar migrations em Neon .................................... [ ]
+[T-08] Implementar GET /api/properties (lista agregada) ............ [ ]
+[T-09] Parser: 7 Pipefy → schema normalizado (validação FK) ........ [ ]
+[T-10] Nekt polling cron job (05h/12h) + retry logic ............... [ ]
+[T-11] Unit tests para parser ...................................... [ ]
+
+=== SPRINT 2 — Frontend & Stitch Integration (6-8h) ===
+
+[T-12] Receber Stitch frontend de Rivaldo .......................... [ ]
+[T-13] Integrar Stitch components → Next.js (sem erros) ............ [ ]
+[T-14] Dashboard 4-telas (layout básico) ........................... [ ]
+[T-15] Data binding: API → Dashboard atualiza ....................... [ ]
+[T-16] Implementar filtros (responsável, status, fase) ............. [ ]
+[T-17] Mobile responsiveness (Lighthouse >= 70) .................... [ ]
+
+=== SPRINT 3 — Alertas & Testes (2-3h) ===
+
+[T-18] Alert logic (SLA detection: verde/amarelo/vermelho) ......... [ ]
+[T-19] Visual badges render no dashboard e timeline ................ [ ]
+[T-20] E2E test (happy path: login → dashboard → filtros → detail) . [ ]
+[T-21] Lighthouse >= 80 desktop, >= 70 mobile ...................... [ ]
+
+=== SPRINT 4-5 — Deploy & Documentação (2-4h) ===
+
+[T-22] Build otimizado (npm run build) ............................. [ ]
+[T-23] Migrations Neon produção .................................... [ ]
+[T-24] Clerk configurado para produção ............................. [ ]
+[T-25] 1 usuário testa fluxo completo .............................. [ ]
+[T-26] README.md (setup, stack, env, API) .......................... [ ]
+[T-27] Changelog v0.1 ............................................... [ ]
+
+Legenda: [ ] pendente | [~] em andamento | [x] completo | [-] bloqueado
+
+=== NOTAS ===
+- Handoff: /tmp/discovery-session/handoffs/2026-04-01-monitor-onboarding/
+- Branch: feat/monitor-onboarding
+- Repos: hackathon-monitordeonboarding
+- Tipo: Produto novo | Tamanho: 18h MVP viável | Stack: Next.js TS + Vercel + Neon + Clerk
+- Próximo: T-03 (Neon provisioning)

@@ -1,0 +1,33 @@
+{
+  "name": "hackathon-monitordeonboarding",
+  "version": "0.1.0",
+  "description": "Monitor de Onboarding — Aggregated view of 7 parallel Pipefy pipelines",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --fix",
+    "type-check": "tsc --noEmit",
+    "test": "jest"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "next": "^14.1.0",
+    "@vercel/postgres": "^0.8.0",
+    "drizzle-orm": "^0.30.10",
+    "@clerk/nextjs": "^4.29.0",
+    "tailwindcss": "^3.4.1",
+    "autoprefixer": "^10.4.17",
+    "postcss": "^8.4.33"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@types/node": "^20.10.6",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "^14.1.0",
+    "@tailwindcss/forms": "^0.5.7"
+  }
+}

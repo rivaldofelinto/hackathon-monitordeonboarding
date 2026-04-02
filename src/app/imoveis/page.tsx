@@ -1,22 +1,25 @@
 import { StitchLayout } from '@/components/stitch/StitchLayout'
 import { Imoveis } from '@/components/stitch/Imoveis'
-
-async function getProperties() {
-  try {
-    const res = await fetch('/api/properties', {
-      cache: 'no-store',
-    })
-    if (!res.ok) throw new Error('Failed to fetch properties')
-    const data = await res.json()
-    return data.data || []
-  } catch (error) {
-    console.error('Error fetching properties:', error)
-    return []
-  }
-}
+import { fetchProperties } from '@/lib/data'
 
 export default async function ImoveisPage() {
-  const properties = await getProperties()
+  const raw = await fetchProperties(200)
+
+  // Map to shape expected by Imoveis component
+  const properties = raw.map(p => ({
+    id: String(p.id),
+    codigo_imovel: p.title,
+    responsavel: p.franquia || undefined,
+    status: (p.status === 'active' ? 'in_progress'
+           : p.status === 'done'   ? 'completed'
+           : p.status === 'blocked' ? 'blocked'
+           : 'pending') as 'pending' | 'in_progress' | 'blocked' | 'completed',
+    current_phase: p.phase,
+    pipe_name: p.pipe_name,
+    sla_color: p.sla_color,
+    late: p.late,
+    updated_at: p.updated_at,
+  }))
 
   return (
     <StitchLayout>

@@ -5,7 +5,8 @@
  */
 
 import { db } from "@/db/client";
-import { sync_log } from "@/db/schema";
+import { sync_log, properties } from "@/db/schema";
+import { sql } from "drizzle-orm";
 import { parseAllPipelines } from "./pipefy-parser";
 import type { PipefyCard } from "./pipefy-parser";
 
@@ -44,6 +45,16 @@ const ONBOARDING_PIPES: Record<string, string> = {
   "PIPE 4 - Fotos Profissionais": "pipefy_szs_all_cards_302290880",
   "PIPE 5 - Criação de Anúncios": "pipefy_szs_all_cards_303024105",
   "PIPE 5.1 - Atualização de Anúncios": "pipefy_szs_all_cards_303024130",
+};
+
+const PIPE_IDS: Record<string, string> = {
+  "pipefy_szs_all_cards_303807224": "0",
+  "pipefy_szs_all_cards_303781436": "1",
+  "pipefy_szs_all_cards_303828424": "2",
+  "pipefy_szs_all_cards_302290867": "3",
+  "pipefy_szs_all_cards_302290880": "4",
+  "pipefy_szs_all_cards_303024105": "5",
+  "pipefy_szs_all_cards_303024130": "5.1",
 };
 
 /**
@@ -188,6 +199,87 @@ async function retryWithBackoff<T>(
   throw lastError;
 }
 
+interface NektRawRow {
+  title: string;
+  current_phase: string;
+  metadata: Record<string, unknown>;
+  done: boolean;
+  late: boolean;
+  overdue: boolean;
+}
+
+type NektRawResult = Record<string, { rows: NektRawRow[]; tableName: string }>;
+
+async function fetchNektRaw(): Promise<NektRawResult> {
+  const nektUrl = process.env.NEKT_API_URL;
+  const nektToken = process.env.NEKT_API_KEY;
+  const result: NektRawResult = {};
+
+  if (!nektUrl || !nektToken) return result;
+
+  for (const [pipeName, tableName] of Object.entries(ONBOARDING_PIPES)) {
+    try {
+      const response = await fetch(`${nektUrl}/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${nektToken}` },
+        body: JSON.stringify({
+          query: `SELECT title, current_phase, metadata, done, late, overdue FROM nekt_trusted.${tableName} LIMIT 5000`,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        result[pipeName] = { rows: data.rows ?? [], tableName };
+      } else {
+        result[pipeName] = { rows: [], tableName };
+      }
+    } catch {
+      result[pipeName] = { rows: [], tableName };
+    }
+  }
+  return result;
+}
+
+async function upsertProperties(rawData: NektRawResult): Promise<number> {
+  const mapped: Array<{ codigo_imovel: string; endereco: string; cidade: string; uf: string; metadata: unknown }> = [];
+
+  for (const [pipeName, { rows, tableName }] of Object.entries(rawData)) {
+    for (const row of rows) {
+      if (!row.title) continue;
+      let phase = "";
+      const match = String(row.current_phase ?? "").match(/name=([^,}]+)/);
+      if (match?.[1]) phase = match[1].trim();
+
+      mapped.push({
+        codigo_imovel: String(row.title),
+        endereco: "",
+        cidade: "",
+        uf: "",
+        metadata: {
+          ...(row.metadata ?? {}),
+          pipe: PIPE_IDS[tableName] ?? "",
+          pipe_name: pipeName,
+          done: Boolean(row.done),
+          late: Boolean(row.late),
+          overdue: Boolean(row.overdue),
+          ...(phase ? { phase } : {}),
+        },
+      });
+    }
+  }
+
+  for (let i = 0; i < mapped.length; i += 200) {
+    await db
+      .insert(properties)
+      .values(mapped.slice(i, i + 200))
+      .onConflictDoUpdate({
+        target: properties.codigo_imovel,
+        set: { metadata: sql`excluded.metadata`, updated_at: sql`now()` },
+      });
+  }
+
+  return mapped.length;
+}
+
 /**
  * Sincronização principal
  */
@@ -214,12 +306,13 @@ export async function syncNekt(config = DEFAULT_CONFIG): Promise<SyncResult> {
       config
     );
 
-    // Parse e normalizar
+    // Parse e normalizar (mantido para compatibilidade)
     const stages = await parseAllPipelines(pipelines);
-    processedCount = stages.length;
 
-    // TODO: Aqui faria batch insert no banco de dados
-    // await insertStages(stages);
+    // Upsert properties.metadata com dados frescos da Nekt
+    const rawData = await fetchNektRaw();
+    processedCount = await upsertProperties(rawData);
+    console.log(`[Nekt] Upserted ${processedCount} properties, parsed ${stages.length} stages`);
 
     // Log sucesso
     await db.update(sync_log).set({

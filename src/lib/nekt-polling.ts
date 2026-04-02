@@ -24,7 +24,7 @@ const DEFAULT_CONFIG: SyncConfig = {
   timeout_ms: 30000,
 };
 
-interface SyncResult {
+export interface SyncResult {
   success: boolean;
   items_processed: number;
   items_failed: number;

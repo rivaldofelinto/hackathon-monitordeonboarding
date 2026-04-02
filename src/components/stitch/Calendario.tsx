@@ -179,8 +179,52 @@ function CalendarioInner({ vistoria = [], fotografia = [] }: CalendarioProps) {
         className="w-full border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
       />
 
-      {/* Timeline grouped by date */}
-      <div className="space-y-8">
+      {/* Fotografia — two-column layout: agendadas | sem data */}
+      {activeTab === 'fotografia' && (
+        <div className="grid grid-cols-2 gap-6">
+          {(['com-data', 'sem-data'] as const).map(key => {
+            const col = grouped.find(([d]) => d === key)
+            const colItems = col ? col[1] : []
+            const colLabel = key === 'com-data' ? 'Com data agendada' : 'Sem data agendada'
+            const colColor = key === 'com-data' ? 'bg-green-500' : 'bg-amber-400'
+            return (
+              <div key={key}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`text-xs font-bold px-3 py-1 rounded-full text-white ${colColor}`}>
+                    {colLabel}
+                  </div>
+                  <span className="text-xs text-slate-400">{colItems.length} imóveis</span>
+                </div>
+                <div className="space-y-2">
+                  {colItems.length === 0 ? (
+                    <p className="text-sm text-slate-400 py-4 text-center">Nenhum imóvel</p>
+                  ) : colItems.map(item => (
+                    <div
+                      key={item.id}
+                      className={`bg-white border rounded-lg p-3 ${item.late ? 'border-red-200 bg-red-50/30' : 'border-slate-200'}`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${SLA_DOT[item.sla_color] ?? 'bg-slate-400'}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900 text-sm truncate">{item.title}</p>
+                          <p className="text-xs text-slate-500 truncate">{item.phase}</p>
+                          {item.turno && <p className="text-xs text-slate-400">Turno: {item.turno}</p>}
+                          {item.link_pipefy && (
+                            <a href={item.link_pipefy} target="_blank" rel="noopener noreferrer" className="text-xs text-slate-400 hover:text-slate-600">🔗 Pipefy</a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Vistoria — timeline grouped by date */}
+      {activeTab === 'vistoria' && <div className="space-y-8">
         {grouped.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
             <p className="text-lg">
@@ -191,10 +235,8 @@ function CalendarioInner({ vistoria = [], fotografia = [] }: CalendarioProps) {
           grouped.map(([date, dayItems]) => (
             <div key={date}>
               <div className="flex items-center gap-3 mb-4">
-                <div className={`text-xs font-bold px-3 py-1 rounded-full text-white ${
-                  activeTab === 'vistoria' ? 'bg-indigo-500' : 'bg-purple-500'
-                }`}>
-                  {date === 'sem-data' ? 'Sem data agendada' : date === 'com-data' ? 'Com data agendada' : formatDateBR(date)}
+                <div className="text-xs font-bold px-3 py-1 rounded-full text-white bg-indigo-500">
+                  {date === 'sem-data' ? 'Sem data agendada' : formatDateBR(date)}
                 </div>
                 <div className="flex-1 h-px bg-slate-200" />
                 <span className="text-xs text-slate-400">{dayItems.length} imóveis</span>
@@ -281,36 +323,14 @@ function CalendarioInner({ vistoria = [], fotografia = [] }: CalendarioProps) {
                       </div>
                     )}
 
-                    {/* Rich fields — Fotografia */}
-                    {activeTab === 'fotografia' && (item.turno || item.link_pipefy) && (
-                      <div className="space-y-1.5 pl-5 text-xs">
-                        {item.turno && (
-                          <div className="flex gap-1.5">
-                            <span className="text-slate-400 w-16 shrink-0">Turno:</span>
-                            <span className="text-slate-700">{item.turno}</span>
-                          </div>
-                        )}
-                        {item.link_pipefy && (
-                          <div className="flex gap-1.5">
-                            <a
-                              href={item.link_pipefy}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-slate-400 hover:text-slate-600 text-xs"
-                            >
-                              🔗 Abrir no Pipefy
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
             </div>
           ))
         )}
-      </div>
+      </div>}
+
     </div>
   )
 }

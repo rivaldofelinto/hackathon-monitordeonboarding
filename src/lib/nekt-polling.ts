@@ -209,6 +209,26 @@ interface NektRawRow {
 
 type NektRawResult = Record<string, { rows: NektRawRow[]; tableName: string }>;
 
+/**
+ * Parse MCP HTTP Streamable response (JSON or SSE) into tool result text
+ */
+async function parseMcpResponse(response: Response): Promise<string | null> {
+  const contentType = response.headers.get("content-type") ?? "";
+  if (contentType.includes("text/event-stream")) {
+    const text = await response.text();
+    for (const line of text.split("\n")) {
+      if (!line.startsWith("data: ")) continue;
+      try {
+        const msg = JSON.parse(line.slice(6));
+        if (msg.result?.content?.[0]?.text) return msg.result.content[0].text;
+      } catch { /* skip */ }
+    }
+    return null;
+  }
+  const json = await response.json();
+  return json.result?.content?.[0]?.text ?? null;
+}
+
 async function fetchNektRaw(): Promise<NektRawResult> {
   const nektUrl = process.env.NEKT_API_URL;
   const nektToken = process.env.NEKT_API_KEY;
@@ -218,18 +238,46 @@ async function fetchNektRaw(): Promise<NektRawResult> {
 
   for (const [pipeName, tableName] of Object.entries(ONBOARDING_PIPES)) {
     try {
-      const response = await fetch(`${nektUrl}/query`, {
+      // MCP HTTP Streamable: POST with JSON-RPC tools/call
+      const response = await fetch(nektUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${nektToken}` },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${nektToken}`,
+          "Accept": "application/json, text/event-stream",
+        },
         body: JSON.stringify({
-          query: `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} LIMIT 5000`,
+          jsonrpc: "2.0",
+          method: "tools/call",
+          params: {
+            name: "execute_sql",
+            arguments: {
+              sql_query: `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} WHERE done = false LIMIT 5000`,
+            },
+          },
+          id: 1,
         }),
       });
+
       if (response.ok) {
-        const data = await response.json();
-        result[pipeName] = { rows: data.rows ?? [], tableName };
+        const text = await parseMcpResponse(response);
+        if (text) {
+          const parsed = JSON.parse(text) as { columns?: string[]; data?: string[][] };
+          const rows: NektRawRow[] = (parsed.data ?? []).map((row) => ({
+            title: row[0] ?? "",
+            current_phase: row[1] ?? "",
+            done: row[2] === "true",
+            late: row[3] === "true",
+            overdue: row[4] === "true",
+          }));
+          result[pipeName] = { rows, tableName };
+          console.log(`[NektRaw] ${pipeName} → ${rows.length} active rows`);
+        } else {
+          console.error(`[NektRaw] ${pipeName} → empty MCP response`);
+          result[pipeName] = { rows: [], tableName };
+        }
       } else {
-        const body = await response.text().catch(() => '');
+        const body = await response.text().catch(() => "");
         console.error(`[NektRaw] ${pipeName} → ${response.status}: ${body.slice(0, 200)}`);
         result[pipeName] = { rows: [], tableName };
       }

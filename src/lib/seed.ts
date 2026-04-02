@@ -81,7 +81,7 @@ async function seedDatabase() {
         stagesList.push({
           property_id: prop.id,
           stage_number: i + 1,
-          stage_name: stageNames[i],
+          stage_name: stageNames[i] ?? '',
           status:
             i < 2
               ? "completed"
@@ -93,12 +93,12 @@ async function seedDatabase() {
           sla_color: i < 2 ? "green" : i === 2 ? "yellow" : "red",
           started_at: new Date(
             Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
-          ).toISOString(),
+          ),
           completed_at:
             i < 2
               ? new Date(
                   Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000
-                ).toISOString()
+                )
               : undefined,
           metadata: {
             pipefy_card_id: `card-${prop.codigo_imovel}-${i}`,
@@ -127,7 +127,7 @@ async function seedDatabase() {
         description: `Status changed to ${stage.status}`,
         created_at: new Date(
           Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000
-        ).toISOString(),
+        ),
         metadata: { previous_status: "pending" },
       });
     }

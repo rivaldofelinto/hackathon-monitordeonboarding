@@ -40,3 +40,4 @@ Thumbs.db
 .dockerignore
 .vercel
 .env*.local
+test-results/\nplaywright-report/

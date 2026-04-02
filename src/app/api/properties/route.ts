@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { properties, stages, activities } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
+
+const PIPE_MAE = sql`${properties.metadata}->>'pipe' = '1'`
 
 /**
  * GET /api/properties
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
       // Por enquanto, apenas pegar todos e filtrar em memória para MVP
     }
 
-    const propertiesList = await query.limit(100); // Limite 100 para MVP
+    const propertiesList = await query.where(PIPE_MAE).limit(100);
 
     // Para cada propriedade, buscar suas stages e activities
     const enriched = await Promise.all(

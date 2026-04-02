@@ -4,7 +4,8 @@
  */
 import { db } from '@/db/client'
 import { properties, stages } from '@/db/schema'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, and } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 
 export interface PropertyWithStages {
   id: number
@@ -33,8 +34,8 @@ export interface PropertyWithStages {
   turno: string
 }
 
-// Generic: fetch up to `limit` properties, optionally filtered by pipe (via metadata->>'pipe')
-export async function fetchProperties(limit = 100, pipeFilter?: string[]): Promise<PropertyWithStages[]> {
+// Generic: fetch up to `limit` properties, optionally filtered by pipe and/or phases (via metadata JSONB)
+export async function fetchProperties(limit = 100, pipeFilter?: string[], phases?: string[]): Promise<PropertyWithStages[]> {
   const baseQuery = db
     .select({
       id: properties.id,
@@ -51,10 +52,16 @@ export async function fetchProperties(limit = 100, pipeFilter?: string[]): Promi
     .leftJoin(stages, eq(stages.property_id, properties.id))
     .orderBy(desc(properties.updated_at))
 
-  const rows = await (pipeFilter && pipeFilter.length > 0
-    ? baseQuery
-        .where(sql`${properties.metadata}->>'pipe' = ANY(ARRAY[${sql.join(pipeFilter.map(p => sql`${p}`), sql`, `)}])`)
-        .limit(limit)
+  const conditions: SQL[] = []
+  if (pipeFilter && pipeFilter.length > 0) {
+    conditions.push(sql`${properties.metadata}->>'pipe' = ANY(ARRAY[${sql.join(pipeFilter.map(p => sql`${p}`), sql`, `)}])`)
+  }
+  if (phases && phases.length > 0) {
+    conditions.push(sql`${properties.metadata}->>'phase' = ANY(ARRAY[${sql.join(phases.map(p => sql`${p}`), sql`, `)}])`)
+  }
+
+  const rows = await (conditions.length > 0
+    ? baseQuery.where(conditions.length === 1 ? conditions[0]! : and(...conditions)!).limit(limit)
     : baseQuery.limit(limit))
 
   return rows.map(r => {

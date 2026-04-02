@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useDateFilter } from '@/lib/date-filter-context'
 
 interface PropertyItem {
   id: number
@@ -62,30 +63,48 @@ function groupByDate(items: PropertyItem[], tab: 'vistoria' | 'fotografia') {
   const map: Record<string, PropertyItem[]> = {}
   for (const item of items) {
     if (!item) continue
-    let dateKey = ''
+    let dateKey: string
     if (tab === 'vistoria') {
-      dateKey = parseBRDate(item.data_vistoria)
+      dateKey = parseBRDate(item.data_vistoria) || 'sem-data'
+    } else {
+      // Pipe 4: data_vistoria é 'Fase 3 - Agendadas' quando agendada (proxy de campo)
+      dateKey = item.data_vistoria ? 'com-data' : 'sem-data'
     }
-    // fallback to updated_at if no specific date
-    if (!dateKey && item.updated_at) {
-      dateKey = item.updated_at.slice(0, 10)
-    }
-    if (!dateKey) dateKey = 'sem-data'
     if (!map[dateKey]) map[dateKey] = []
     map[dateKey]!.push(item)
   }
   return Object.entries(map).sort((a, b) => {
     if (a[0] === 'sem-data') return 1
     if (b[0] === 'sem-data') return -1
-    return a[0].localeCompare(b[0]) // ascending: nearest date first
+    return a[0].localeCompare(b[0])
   })
 }
 
-export function Calendario({ vistoria = [], fotografia = [] }: CalendarioProps) {
+function CalendarioInner({ vistoria = [], fotografia = [] }: CalendarioProps) {
+  const { dateFrom, dateTo } = useDateFilter()
+
   const [activeTab, setActiveTab] = useState<'vistoria' | 'fotografia'>('vistoria')
   const [search, setSearch] = useState('')
 
-  const items = activeTab === 'vistoria' ? vistoria : fotografia
+  // Filter by date range when set — uses data_vistoria for pipe 3, updated_at for pipe 4
+  const filterByDate = useMemo(() => {
+    if (!dateFrom || !dateTo) return null
+    return { from: dateFrom, to: dateTo }
+  }, [dateFrom, dateTo])
+
+  const applyDateFilter = (list: PropertyItem[]) => {
+    if (!filterByDate) return list
+    return list.filter(p => {
+      const isoDate = parseBRDate(p.data_vistoria) || p.updated_at?.slice(0, 10)
+      if (!isoDate) return false
+      return isoDate >= filterByDate.from && isoDate <= filterByDate.to
+    })
+  }
+
+  const filteredVistoria = useMemo(() => applyDateFilter(vistoria), [vistoria, filterByDate])
+  const filteredFotografia = useMemo(() => applyDateFilter(fotografia), [fotografia, filterByDate])
+
+  const items = activeTab === 'vistoria' ? filteredVistoria : filteredFotografia
 
   const filtered = useMemo(() =>
     items.filter(p =>
@@ -100,11 +119,8 @@ export function Calendario({ vistoria = [], fotografia = [] }: CalendarioProps) 
 
   const grouped = useMemo(() => groupByDate(filtered, activeTab), [filtered, activeTab])
 
-  const agendadoCount = activeTab === 'vistoria'
-    ? vistoria.filter(p => p.data_vistoria).length
-    : fotografia.filter(p => p.phase.includes('Agendada') || p.phase.includes('Agendadas')).length
-
-  const lateCount = items.filter(p => p.late).length
+  const agendadoCount = items.filter(p => Boolean(p.data_vistoria)).length
+  const semDataCount = items.length - agendadoCount
 
   return (
     <div className="space-y-8">
@@ -124,7 +140,7 @@ export function Calendario({ vistoria = [], fotografia = [] }: CalendarioProps) 
           }`}
         >
           🏠 Pipe 3 — Vistoria
-          <span className="ml-2 text-xs font-normal text-slate-400">({vistoria.length})</span>
+          <span className="ml-2 text-xs font-normal text-slate-400">({filteredVistoria.length})</span>
         </button>
         <button
           onClick={() => { setActiveTab('fotografia'); setSearch('') }}
@@ -135,29 +151,19 @@ export function Calendario({ vistoria = [], fotografia = [] }: CalendarioProps) 
           }`}
         >
           📷 Pipe 4 — Fotografia
-          <span className="ml-2 text-xs font-normal text-slate-400">({fotografia.length})</span>
+          <span className="ml-2 text-xs font-normal text-slate-400">({filteredFotografia.length})</span>
         </button>
       </div>
 
       {/* Summary bar */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Total no pipe</p>
-          <p className="text-2xl font-bold text-blue-900">{items.length}</p>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Com data agendada</p>
+          <p className="text-2xl font-bold text-green-900">{agendadoCount}</p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">
-            {activeTab === 'vistoria' ? 'Com data agendada' : 'Fase Agendadas'}
-          </p>
-          <p className="text-2xl font-bold text-amber-900">{agendadoCount}</p>
-        </div>
-        <div className={`rounded-lg p-4 border ${lateCount > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
-          <p className={`text-xs font-semibold uppercase tracking-wide mb-1 ${lateCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-            SLA Atrasado
-          </p>
-          <p className={`text-2xl font-bold ${lateCount > 0 ? 'text-red-900' : 'text-green-900'}`}>
-            {lateCount}
-          </p>
+          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">Sem data agendada</p>
+          <p className="text-2xl font-bold text-amber-900">{semDataCount}</p>
         </div>
       </div>
 
@@ -177,7 +183,9 @@ export function Calendario({ vistoria = [], fotografia = [] }: CalendarioProps) 
       <div className="space-y-8">
         {grouped.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
-            <p className="text-lg">Nenhum agendamento encontrado</p>
+            <p className="text-lg">
+              {filterByDate ? 'Nenhum agendamento no período selecionado' : 'Nenhum agendamento encontrado'}
+            </p>
           </div>
         ) : (
           grouped.map(([date, dayItems]) => (
@@ -186,7 +194,7 @@ export function Calendario({ vistoria = [], fotografia = [] }: CalendarioProps) 
                 <div className={`text-xs font-bold px-3 py-1 rounded-full text-white ${
                   activeTab === 'vistoria' ? 'bg-indigo-500' : 'bg-purple-500'
                 }`}>
-                  {date === 'sem-data' ? 'Sem data agendada' : formatDateBR(date)}
+                  {date === 'sem-data' ? 'Sem data agendada' : date === 'com-data' ? 'Com data agendada' : formatDateBR(date)}
                 </div>
                 <div className="flex-1 h-px bg-slate-200" />
                 <span className="text-xs text-slate-400">{dayItems.length} imóveis</span>
@@ -305,4 +313,8 @@ export function Calendario({ vistoria = [], fotografia = [] }: CalendarioProps) 
       </div>
     </div>
   )
+}
+
+export function Calendario(props: CalendarioProps) {
+  return <CalendarioInner {...props} />
 }

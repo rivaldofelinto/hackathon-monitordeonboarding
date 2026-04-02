@@ -2,91 +2,78 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UserButton } from '@clerk/nextjs'
+import { useState } from 'react'
+import { DateFilter } from './DateFilter'
+import { DateFilterProvider } from '@/lib/date-filter-context'
+
+const navItems = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/calendario', label: 'Calendário' },
+]
 
 export function StitchLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-
-  const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { href: '/imoveis', label: 'Imóveis', icon: 'domain' },
-    { href: '/calendario', label: 'Calendário', icon: 'calendar_today' },
-    { href: '/documentos', label: 'description', icon: 'description' },
-  ]
+  const [open, setOpen] = useState(true)
 
   const isActive = (href: string) => pathname === href
 
   return (
+    <DateFilterProvider>
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
-      <aside className="w-64 h-screen fixed left-0 top-0 bg-white flex flex-col py-6 z-50 border-r border-slate-200/50 shadow-sm">
-        <div className="px-6 mb-10">
+      <aside
+        className={`h-screen fixed left-0 top-0 bg-white flex flex-col py-6 z-50 border-r border-slate-200/50 shadow-sm transition-all duration-300 overflow-hidden ${
+          open ? 'w-52' : 'w-0'
+        }`}
+      >
+        <div className="px-6 mb-10 whitespace-nowrap">
           <h1 className="text-xl font-bold text-[#000e24] tracking-tight font-headline">Monitor</h1>
           <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Onboarding</p>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className="flex-1 space-y-1 px-3 overflow-y-auto">
           {navItems.map(item => (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 ${
+              className={`flex items-center px-3 py-3 rounded-lg transition-all duration-200 whitespace-nowrap ${
                 isActive(item.href)
                   ? 'bg-primary text-white'
                   : 'text-slate-700 hover:bg-slate-100'
               }`}
             >
-              <span className="material-symbols-outlined text-lg">{item.icon}</span>
               <span className="text-sm font-medium">{item.label}</span>
             </Link>
           ))}
-        </nav>
 
-        <div className="px-6 mt-auto">
-          <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-            <UserButton />
-            <div className="overflow-hidden flex-1">
-              <p className="text-sm font-semibold text-slate-900 truncate">Seu Nome</p>
-              <p className="text-xs text-slate-500 truncate">Admin</p>
-            </div>
-          </div>
-        </div>
+          <DateFilter />
+        </nav>
       </aside>
 
       {/* Main Content */}
-      <div className="ml-64 w-[calc(100%-16rem)] flex flex-col">
-        {/* Header */}
-        <header className="fixed top-0 right-0 w-[calc(100%-16rem)] z-40 bg-white/80 backdrop-blur-md border-b border-slate-200/50 shadow-sm flex justify-between items-center px-8 h-16">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="relative w-full max-w-md">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                search
-              </span>
-              <input
-                className="w-full bg-slate-100 border-none rounded-full py-2 pl-10 pr-4 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Buscar imóveis ou responsáveis..."
-                type="text"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-6">
-            <button className="hover:bg-slate-50 rounded-full p-2 transition-all duration-200">
-              <span className="material-symbols-outlined text-slate-600">notifications</span>
-            </button>
-            <button className="hover:bg-slate-50 rounded-full p-2 transition-all duration-200">
-              <span className="material-symbols-outlined text-slate-600">help</span>
-            </button>
-            <button className="bg-primary text-white px-6 py-2 rounded-lg font-semibold text-sm hover:opacity-90 transition-all">
-              Novo Imóvel
-            </button>
-          </div>
-        </header>
+      <div
+        className={`flex flex-col transition-all duration-300 flex-1 ${open ? 'ml-52' : 'ml-0'}`}
+      >
+        {/* Hamburger */}
+        <div className="px-4 pt-4">
+          <button
+            onClick={() => setOpen(o => !o)}
+            className="p-2 rounded-lg hover:bg-slate-200 transition-colors"
+            aria-label={open ? 'Fechar menu' : 'Abrir menu'}
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-slate-600" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <line x1="2" y1="5" x2="18" y2="5"/>
+              <line x1="2" y1="10" x2="18" y2="10"/>
+              <line x1="2" y1="15" x2="18" y2="15"/>
+            </svg>
+          </button>
+        </div>
 
-        {/* Content Area */}
-        <main className="pt-20 px-8 pb-12 overflow-auto flex-1">
+        <main className="px-8 pb-12 overflow-auto flex-1">
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
     </div>
+    </DateFilterProvider>
   )
 }

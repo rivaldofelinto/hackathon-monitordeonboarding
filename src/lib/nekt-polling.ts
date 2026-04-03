@@ -213,6 +213,8 @@ interface NektRawRow {
   anfitriao_escolhido?: string;
   phase_started_at?: string;
   tipo_de_adequacao?: string;
+  duedate?: string;
+  data_agendamento_vistoria?: string;
 }
 
 type NektRawResult = Record<string, { rows: NektRawRow[]; tableName: string }>;
@@ -286,7 +288,7 @@ async function fetchNektRaw(): Promise<NektRawResult> {
     try {
       const isScd2 = tableName === SCD2_PIPE1_TABLE;
       const sqlQuery = isScd2
-        ? `SELECT DISTINCT title, currentphasename AS current_phase, labels, done, late, overdue, anfitriao_responsavel, anfitriao_escolhido, startedcurrentphaseat, tipo_de_adequacao FROM nekt_trusted.${tableName} WHERE availableuntil IS NULL AND done = false`
+        ? `SELECT DISTINCT title, currentphasename AS current_phase, labels, done, late, overdue, anfitriao_responsavel, anfitriao_escolhido, startedcurrentphaseat, tipo_de_adequacao, duedate, data_de_agendamento_da_vistoria FROM nekt_trusted.${tableName} WHERE availableuntil IS NULL AND done = false`
         : `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} WHERE done = false LIMIT 5000`;
 
       const response = await fetch(nektUrl, {
@@ -315,7 +317,7 @@ async function fetchNektRaw(): Promise<NektRawResult> {
           const parsed = JSON.parse(text) as { columns?: string[]; data?: string[][] };
           const rows: NektRawRow[] = (parsed.data ?? []).map((row) => {
             if (isScd2) {
-              return { title: row[0] ?? "", current_phase: row[1] ?? "", labels: row[2] ?? "", done: row[3] === "true", late: row[4] === "true", overdue: row[5] === "true", anfitriao_responsavel: row[6] ?? "", anfitriao_escolhido: row[7] ?? "", phase_started_at: row[8] ?? "", tipo_de_adequacao: row[9] ?? "" };
+              return { title: row[0] ?? "", current_phase: row[1] ?? "", labels: row[2] ?? "", done: row[3] === "true", late: row[4] === "true", overdue: row[5] === "true", anfitriao_responsavel: row[6] ?? "", anfitriao_escolhido: row[7] ?? "", phase_started_at: row[8] ?? "", tipo_de_adequacao: row[9] ?? "", duedate: row[10] ?? "", data_agendamento_vistoria: row[11] ?? "" };
             }
             return { title: row[0] ?? "", current_phase: row[1] ?? "", done: row[2] === "true", late: row[3] === "true", overdue: row[4] === "true" };
           });
@@ -363,6 +365,8 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
       if (phase) patch.phase = phase;
       if (row.phase_started_at) patch.phase_started_at = row.phase_started_at;
       if (row.tipo_de_adequacao) patch.tipo_de_adequacao = row.tipo_de_adequacao;
+      if (row.duedate) patch.duedate = row.duedate;
+      if (row.data_agendamento_vistoria) patch.data_agendamento_vistoria = row.data_agendamento_vistoria;
       const anfitriao = (row.anfitriao_responsavel && row.anfitriao_responsavel !== 'À Definir')
         ? row.anfitriao_responsavel
         : (row.anfitriao_escolhido ?? "");

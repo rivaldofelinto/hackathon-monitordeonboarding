@@ -27,6 +27,8 @@ interface PropertyRecord {
     anfitriao?: string
     phase_started_at?: string
     tipo_de_adequacao?: string
+    duedate?: string
+    data_agendamento_vistoria?: string
   } | null
   stages: StageRecord[]
   created_at: string
@@ -248,89 +250,97 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
         </div>
       </div>
 
-      {/* Top 5 por Fase — maior tempo parado */}
-      {topPhase && (
+      {/* Alertas por Fase — vencimento no mês vigente */}
+      {topPhase && (topPhase.fase3.length > 0 || topPhase.fase5.length > 0) && (
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-slate-900">Alertas SLA</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Fase 3 */}
+            {/* Fase 3 — agendamento preenchido + vence este mês */}
             <div>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-700 mb-3">
                 Fase 3 — Vistoria Inicial
               </h3>
-              <div className="space-y-2">
-                {topPhase.fase3.map(p => {
-                  const cardId = `${p.id}`
-                  const isOpen = expandedCard === cardId
-                  const days = p.metadata?.phase_started_at
-                    ? Math.floor((Date.now() - new Date(p.metadata.phase_started_at).getTime()) / 86400000)
-                    : null
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => setExpandedCard(isOpen ? null : cardId)}
-                      className="w-full text-left bg-white border border-blue-100 hover:border-blue-300 rounded-lg p-4 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-slate-900 truncate">
-                            {p.metadata?.title || p.codigo_imovel}
-                          </p>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {days !== null ? `${days} dias na fase` : '—'}
-                          </p>
+              {topPhase.fase3.length === 0 ? (
+                <p className="text-xs text-slate-400 py-2">Nenhum card com vencimento este mês</p>
+              ) : (
+                <div className="space-y-2">
+                  {topPhase.fase3.map(p => {
+                    const cardId = `${p.id}`
+                    const isOpen = expandedCard === cardId
+                    const due = p.metadata?.duedate
+                      ? new Date(p.metadata.duedate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                      : null
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => setExpandedCard(isOpen ? null : cardId)}
+                        className="w-full text-left bg-white border border-blue-100 hover:border-blue-300 rounded-lg p-4 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-900 truncate">
+                              {p.metadata?.title || p.codigo_imovel}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {due ? `Vence ${due}` : '—'}
+                            </p>
+                          </div>
+                          <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
                         </div>
-                        <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
-                      </div>
-                      {isOpen && (
-                        <p className="text-xs text-blue-600 font-medium mt-2 pt-2 border-t border-blue-100">
-                          Anfitrião: {p.metadata?.anfitriao || 'Não definido'}
-                        </p>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
+                        {isOpen && (
+                          <p className="text-xs text-blue-600 font-medium mt-2 pt-2 border-t border-blue-100">
+                            Anfitrião: {p.metadata?.anfitriao || 'Não definido'}
+                          </p>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Fase 5 */}
+            {/* Fase 5 — vence este mês */}
             <div>
               <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-700 mb-3">
                 Fase 5 — Adequação/Enxoval
               </h3>
-              <div className="space-y-2">
-                {topPhase.fase5.map(p => {
-                  const cardId = `${p.id}`
-                  const isOpen = expandedCard === cardId
-                  const days = p.metadata?.phase_started_at
-                    ? Math.floor((Date.now() - new Date(p.metadata.phase_started_at).getTime()) / 86400000)
-                    : null
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => setExpandedCard(isOpen ? null : cardId)}
-                      className="w-full text-left bg-white border border-amber-100 hover:border-amber-300 rounded-lg p-4 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-slate-900 truncate">
-                            {p.metadata?.title || p.codigo_imovel}
-                          </p>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {days !== null ? `${days} dias na fase` : '—'}
-                          </p>
+              {topPhase.fase5.length === 0 ? (
+                <p className="text-xs text-slate-400 py-2">Nenhum card com vencimento este mês</p>
+              ) : (
+                <div className="space-y-2">
+                  {topPhase.fase5.map(p => {
+                    const cardId = `${p.id}`
+                    const isOpen = expandedCard === cardId
+                    const due = p.metadata?.duedate
+                      ? new Date(p.metadata.duedate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+                      : null
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => setExpandedCard(isOpen ? null : cardId)}
+                        className="w-full text-left bg-white border border-amber-100 hover:border-amber-300 rounded-lg p-4 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-slate-900 truncate">
+                              {p.metadata?.title || p.codigo_imovel}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {due ? `Vence ${due}` : '—'}
+                            </p>
+                          </div>
+                          <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
                         </div>
-                        <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
-                      </div>
-                      {isOpen && (
-                        <p className="text-xs text-amber-700 font-medium mt-2 pt-2 border-t border-amber-100">
-                          {p.metadata?.tipo_de_adequacao || 'Tipo não definido'}
-                        </p>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
+                        {isOpen && (
+                          <p className="text-xs text-amber-700 font-medium mt-2 pt-2 border-t border-amber-100">
+                            {p.metadata?.tipo_de_adequacao || 'Tipo não definido'}
+                          </p>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

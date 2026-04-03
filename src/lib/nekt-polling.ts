@@ -37,9 +37,11 @@ export interface SyncResult {
  * Real Pipefy onboarding pipes in Nekt data warehouse
  * Tables confirmed via MCP: SELECT table_name FROM information_schema.tables WHERE table_schema = 'nekt_trusted'
  */
+const SCD2_PIPE1_TABLE = "pipefy_szs_all_cards_303781436_scd2_colunas_expandidas";
+
 const ONBOARDING_PIPES: Record<string, string> = {
   "PIPE 0 - Onboarding proprietário": "pipefy_szs_all_cards_303807224",
-  "PIPE 1 - Implantação": "pipefy_szs_all_cards_303781436",
+  "PIPE 1 - Implantação": SCD2_PIPE1_TABLE,
   "PIPE 2 - Adequação": "pipefy_szs_all_cards_303828424",
   "PIPE 3 - Vistorias": "pipefy_szs_all_cards_302290867",
   "PIPE 4 - Fotos Profissionais": "pipefy_szs_all_cards_302290880",
@@ -50,6 +52,7 @@ const ONBOARDING_PIPES: Record<string, string> = {
 const PIPE_IDS: Record<string, string> = {
   "pipefy_szs_all_cards_303807224": "0",
   "pipefy_szs_all_cards_303781436": "1",
+  [SCD2_PIPE1_TABLE]: "1",
   "pipefy_szs_all_cards_303828424": "2",
   "pipefy_szs_all_cards_302290867": "3",
   "pipefy_szs_all_cards_302290880": "4",
@@ -202,6 +205,7 @@ async function retryWithBackoff<T>(
 interface NektRawRow {
   title: string;
   current_phase: string;
+  labels?: string;
   done: boolean;
   late: boolean;
   overdue: boolean;
@@ -276,6 +280,11 @@ async function fetchNektRaw(): Promise<NektRawResult> {
 
   for (const [pipeName, tableName] of Object.entries(ONBOARDING_PIPES)) {
     try {
+      const isScd2 = tableName === SCD2_PIPE1_TABLE;
+      const sqlQuery = isScd2
+        ? `SELECT DISTINCT title, currentphasename AS current_phase, labels, done, late, overdue FROM nekt_trusted.${tableName} WHERE availableuntil IS NULL AND done = false`
+        : `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} WHERE done = false LIMIT 5000`;
+
       const response = await fetch(nektUrl, {
         method: "POST",
         headers: {
@@ -289,9 +298,7 @@ async function fetchNektRaw(): Promise<NektRawResult> {
           method: "tools/call",
           params: {
             name: "execute_sql",
-            arguments: {
-              sql_query: `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} WHERE done = false LIMIT 5000`,
-            },
+            arguments: { sql_query: sqlQuery },
           },
           id: 1,
         }),
@@ -302,13 +309,12 @@ async function fetchNektRaw(): Promise<NektRawResult> {
         const text = parseSseText(rawText);
         if (text) {
           const parsed = JSON.parse(text) as { columns?: string[]; data?: string[][] };
-          const rows: NektRawRow[] = (parsed.data ?? []).map((row) => ({
-            title: row[0] ?? "",
-            current_phase: row[1] ?? "",
-            done: row[2] === "true",
-            late: row[3] === "true",
-            overdue: row[4] === "true",
-          }));
+          const rows: NektRawRow[] = (parsed.data ?? []).map((row) => {
+            if (isScd2) {
+              return { title: row[0] ?? "", current_phase: row[1] ?? "", labels: row[2] ?? "", done: row[3] === "true", late: row[4] === "true", overdue: row[5] === "true" };
+            }
+            return { title: row[0] ?? "", current_phase: row[1] ?? "", done: row[2] === "true", late: row[3] === "true", overdue: row[4] === "true" };
+          });
           result[pipeName] = { rows, tableName };
           console.log(`[NektRaw] ${pipeName} → ${rows.length} active rows`);
         } else {
@@ -337,9 +343,9 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
     const pipeId = PIPE_IDS[tableName] ?? "";
     for (const row of rows) {
       if (!row.title || String(row.title).length > 46) continue;
-      let phase = "";
-      const match = String(row.current_phase ?? "").match(/name=([^,}]+)/);
-      if (match?.[1]) phase = match[1].trim();
+      const rawPhase = String(row.current_phase ?? "");
+      const match = rawPhase.match(/name=([^,}]+)/);
+      const phase = (match?.[1] ?? rawPhase).trim();
 
       const patch: Record<string, unknown> = {
         pipe: pipeId,
@@ -349,6 +355,7 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
         late: Boolean(row.late),
         overdue: Boolean(row.overdue),
       };
+      if (row.labels) patch.labels = row.labels;
       if (phase) patch.phase = phase;
 
       // Composite key: "MSU0301_1" — prevents cross-pipe overwrite for same property

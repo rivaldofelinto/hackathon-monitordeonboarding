@@ -50,11 +50,11 @@ export async function GET(request: NextRequest) {
       ),
     ]
 
-    const [totalRes, activeRes, doneRes, slaRedRes, ...phaseResults] = await Promise.all([
+    const [totalRes, activeRes, standbyRes, slaRedRes, ...phaseResults] = await Promise.all([
       db.select({ count: count() }).from(properties).where(w(dateCond)),
       db.select({ count: count() }).from(properties).where(w(dateCond, sql`${properties.metadata}->>'phase' NOT LIKE 'Fase 0%' AND ${properties.metadata}->>'phase' NOT LIKE '%Fase 11%' AND ${properties.metadata}->>'phase' NOT LIKE '%Churn%' AND ${properties.metadata}->>'phase' NOT LIKE '%Exclu%'`)),
       db.select({ count: count() }).from(properties).where(
-        w(dateCond, sql`${properties.metadata}->>'phase' LIKE '%Fase 11%'`)
+        w(dateCond, sql`${properties.metadata}->>'labels' LIKE '%Stand-By%'`)
       ),
       db.select({ count: count() }).from(properties).where(
         w(dateCond, sql`(${properties.metadata}->>'late')::boolean = true`)
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     const total = Number(totalRes[0]?.count ?? 0)
     const active = Number(activeRes[0]?.count ?? 0)
-    const done = Number(doneRes[0]?.count ?? 0)
+    const standby = Number(standbyRes[0]?.count ?? 0)
     const slaRed = Number(slaRedRes[0]?.count ?? 0)
     const phaseGroups = PHASE_GROUP_LABELS.map((label, i) => ({
       label,
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
       success: true,
       total,
       active,
-      done,
+      standby,
       blocked: 0,
       sla_red: slaRed,
       sla_ok: total - slaRed,

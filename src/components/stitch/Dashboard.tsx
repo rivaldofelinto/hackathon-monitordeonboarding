@@ -39,7 +39,7 @@ interface PhaseGroup {
 interface Stats {
   total: number
   active: number
-  done: number
+  standby: number
   blocked: number
   sla_red: number
   sla_ok: number
@@ -149,7 +149,7 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
 
   const totalToShow = stats?.total ?? properties.length
   const activeToShow = stats?.active ?? properties.filter(p => p.status === 'active').length
-  const doneToShow = stats?.done ?? properties.filter(p => p.status === 'done').length
+  const standbyToShow = stats?.standby ?? 0
   const slaRedToShow = stats?.sla_red ?? localSlaRed
 
   return (
@@ -183,22 +183,22 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
             </h3>
           </div>
           <p className="text-white/60 text-sm mt-6">
-            {activeToShow.toLocaleString('pt-BR')} ativos · {doneToShow.toLocaleString('pt-BR')} concluídos
+            {activeToShow.toLocaleString('pt-BR')} ativos · {standbyToShow.toLocaleString('pt-BR')} em stand-by
           </p>
         </div>
 
-        {/* Concluídos */}
-        <div className="bg-green-50 border border-green-200 p-6 rounded-xl">
+        {/* Stand-By */}
+        <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-xl">
           <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-green-500" />
-            <p className="text-green-700 font-semibold uppercase tracking-widest text-xs">
-              Concluídos
+            <span className="w-2 h-2 rounded-full bg-yellow-500" />
+            <p className="text-yellow-700 font-semibold uppercase tracking-widest text-xs">
+              Stand-By
             </p>
           </div>
-          <p className="text-3xl font-extrabold text-green-900">
-            {doneToShow.toLocaleString('pt-BR')}
+          <p className="text-3xl font-extrabold text-yellow-900">
+            {standbyToShow.toLocaleString('pt-BR')}
           </p>
-          <p className="text-green-600 text-xs mt-2">Onboarding finalizado</p>
+          <p className="text-yellow-600 text-xs mt-2">Em pausa ou reforma</p>
         </div>
 
         {/* SLA Alerta */}

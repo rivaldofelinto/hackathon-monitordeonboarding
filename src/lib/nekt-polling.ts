@@ -211,6 +211,8 @@ interface NektRawRow {
   overdue: boolean;
   anfitriao_responsavel?: string;
   anfitriao_escolhido?: string;
+  phase_started_at?: string;
+  tipo_de_adequacao?: string;
 }
 
 type NektRawResult = Record<string, { rows: NektRawRow[]; tableName: string }>;
@@ -284,7 +286,7 @@ async function fetchNektRaw(): Promise<NektRawResult> {
     try {
       const isScd2 = tableName === SCD2_PIPE1_TABLE;
       const sqlQuery = isScd2
-        ? `SELECT DISTINCT title, currentphasename AS current_phase, labels, done, late, overdue, anfitriao_responsavel, anfitriao_escolhido FROM nekt_trusted.${tableName} WHERE availableuntil IS NULL AND done = false`
+        ? `SELECT DISTINCT title, currentphasename AS current_phase, labels, done, late, overdue, anfitriao_responsavel, anfitriao_escolhido, startedcurrentphaseat, tipo_de_adequacao FROM nekt_trusted.${tableName} WHERE availableuntil IS NULL AND done = false`
         : `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} WHERE done = false LIMIT 5000`;
 
       const response = await fetch(nektUrl, {
@@ -313,7 +315,7 @@ async function fetchNektRaw(): Promise<NektRawResult> {
           const parsed = JSON.parse(text) as { columns?: string[]; data?: string[][] };
           const rows: NektRawRow[] = (parsed.data ?? []).map((row) => {
             if (isScd2) {
-              return { title: row[0] ?? "", current_phase: row[1] ?? "", labels: row[2] ?? "", done: row[3] === "true", late: row[4] === "true", overdue: row[5] === "true", anfitriao_responsavel: row[6] ?? "", anfitriao_escolhido: row[7] ?? "" };
+              return { title: row[0] ?? "", current_phase: row[1] ?? "", labels: row[2] ?? "", done: row[3] === "true", late: row[4] === "true", overdue: row[5] === "true", anfitriao_responsavel: row[6] ?? "", anfitriao_escolhido: row[7] ?? "", phase_started_at: row[8] ?? "", tipo_de_adequacao: row[9] ?? "" };
             }
             return { title: row[0] ?? "", current_phase: row[1] ?? "", done: row[2] === "true", late: row[3] === "true", overdue: row[4] === "true" };
           });
@@ -359,6 +361,8 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
       };
       if (row.labels) patch.labels = row.labels;
       if (phase) patch.phase = phase;
+      if (row.phase_started_at) patch.phase_started_at = row.phase_started_at;
+      if (row.tipo_de_adequacao) patch.tipo_de_adequacao = row.tipo_de_adequacao;
       const anfitriao = (row.anfitriao_responsavel && row.anfitriao_responsavel !== 'À Definir')
         ? row.anfitriao_responsavel
         : (row.anfitriao_escolhido ?? "");

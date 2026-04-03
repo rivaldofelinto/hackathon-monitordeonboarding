@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getStatusStyle, normalizeStatus } from '@/lib/stitch-utils'
 import { Warnings } from './Warnings'
 import { useDateFilter } from '@/lib/date-filter-context'
 
@@ -26,6 +25,8 @@ interface PropertyRecord {
     overdue?: boolean
     done?: boolean
     anfitriao?: string
+    phase_started_at?: string
+    tipo_de_adequacao?: string
   } | null
   stages: StageRecord[]
   created_at: string
@@ -47,6 +48,11 @@ interface Stats {
   phaseGroups?: PhaseGroup[]
 }
 
+interface TopPhaseData {
+  fase3: PropertyRecord[]
+  fase5: PropertyRecord[]
+}
+
 // SLA detection from real Nekt data
 function getSlaColor(property: PropertyRecord): 'red' | 'yellow' | 'green' {
   if (property.metadata?.late) return 'red'
@@ -57,17 +63,6 @@ function getSlaColor(property: PropertyRecord): 'red' | 'yellow' | 'green' {
   return 'green'
 }
 
-const SLA_BADGE: Record<string, string> = {
-  red:    'bg-red-100 text-red-700 border-red-200',
-  yellow: 'bg-amber-100 text-amber-700 border-amber-200',
-  green:  'bg-green-100 text-green-700 border-green-200',
-}
-
-const SLA_DOT: Record<string, string> = {
-  red:    'bg-red-500',
-  yellow: 'bg-amber-400',
-  green:  'bg-green-500',
-}
 
 const PHASE_GROUPS = [
   {
@@ -108,6 +103,15 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
 
   const [properties, setProperties] = useState<PropertyRecord[]>(initialData)
   const [stats, setStats] = useState<Stats | null>(null)
+  const [topPhase, setTopPhase] = useState<TopPhaseData | null>(null)
+  const [expandedCard, setExpandedCard] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/properties/top-phase')
+      .then(res => res.json())
+      .then(data => { if (data.success) setTopPhase(data) })
+      .catch(console.error)
+  }, [])
 
   useEffect(() => {
     const qs = dateFrom && dateTo ? `?dateFrom=${dateFrom}&dateTo=${dateTo}` : ''
@@ -146,7 +150,6 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
 
   // SLA breakdown from local sample
   const localSlaRed = properties.filter(p => getSlaColor(p) === 'red').length
-  const localSlaYellow = properties.filter(p => getSlaColor(p) === 'yellow').length
 
   const totalToShow = stats?.total ?? properties.length
   const activeToShow = stats?.active ?? properties.filter(p => p.status === 'active').length
@@ -245,41 +248,90 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
         </div>
       </div>
 
-      {/* SLA Badge List — top at-risk properties */}
-      {localSlaRed > 0 && (
+      {/* Top 5 por Fase — maior tempo parado */}
+      {topPhase && (
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-slate-900">Alertas SLA</h2>
-          <div className="grid grid-cols-1 gap-3">
-            {properties
-              .filter(p => getSlaColor(p) === 'red')
-              .slice(0, 10)
-              .map(p => (
-                <div key={p.id} className="bg-white border border-red-200 rounded-lg p-4 flex items-center gap-4">
-                  <span className="w-3 h-3 rounded-full bg-red-500 shrink-0 animate-pulse" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-slate-900 truncate">
-                      {p.metadata?.title || p.codigo_imovel}
-                    </p>
-                    <p className="text-xs text-slate-500 truncate">{p.metadata?.phase}</p>
-                    {p.metadata?.phase?.includes('Fase 3') && p.metadata?.anfitriao && (
-                      <p className="text-xs text-blue-600 font-medium truncate mt-0.5">
-                        Anfitrião: {p.metadata.anfitriao}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full border ${SLA_BADGE.red}`}>
-                      SLA Crítico
-                    </span>
-                    <span className="text-xs text-slate-400">{p.metadata?.pipe_name}</span>
-                  </div>
-                </div>
-              ))}
-            {localSlaRed > 10 && (
-              <p className="text-center text-sm text-slate-500 py-2">
-                + {localSlaRed - 10} imóveis com SLA crítico adicionais
-              </p>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Fase 3 */}
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-700 mb-3">
+                Fase 3 — Vistoria Inicial
+              </h3>
+              <div className="space-y-2">
+                {topPhase.fase3.map(p => {
+                  const cardId = `${p.id}`
+                  const isOpen = expandedCard === cardId
+                  const days = p.metadata?.phase_started_at
+                    ? Math.floor((Date.now() - new Date(p.metadata.phase_started_at).getTime()) / 86400000)
+                    : null
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setExpandedCard(isOpen ? null : cardId)}
+                      className="w-full text-left bg-white border border-blue-100 hover:border-blue-300 rounded-lg p-4 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900 truncate">
+                            {p.metadata?.title || p.codigo_imovel}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {days !== null ? `${days} dias na fase` : '—'}
+                          </p>
+                        </div>
+                        <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
+                      </div>
+                      {isOpen && (
+                        <p className="text-xs text-blue-600 font-medium mt-2 pt-2 border-t border-blue-100">
+                          Anfitrião: {p.metadata?.anfitriao || 'Não definido'}
+                        </p>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Fase 5 */}
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-amber-700 mb-3">
+                Fase 5 — Adequação/Enxoval
+              </h3>
+              <div className="space-y-2">
+                {topPhase.fase5.map(p => {
+                  const cardId = `${p.id}`
+                  const isOpen = expandedCard === cardId
+                  const days = p.metadata?.phase_started_at
+                    ? Math.floor((Date.now() - new Date(p.metadata.phase_started_at).getTime()) / 86400000)
+                    : null
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setExpandedCard(isOpen ? null : cardId)}
+                      className="w-full text-left bg-white border border-amber-100 hover:border-amber-300 rounded-lg p-4 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-slate-900 truncate">
+                            {p.metadata?.title || p.codigo_imovel}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {days !== null ? `${days} dias na fase` : '—'}
+                          </p>
+                        </div>
+                        <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
+                      </div>
+                      {isOpen && (
+                        <p className="text-xs text-amber-700 font-medium mt-2 pt-2 border-t border-amber-100">
+                          {p.metadata?.tipo_de_adequacao || 'Tipo não definido'}
+                        </p>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}

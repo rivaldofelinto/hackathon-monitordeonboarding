@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
       db.select({ count: count() }).from(properties).where(w(dateCond)),
       db.select({ count: count() }).from(properties).where(w(dateCond, sql`${properties.metadata}->>'phase' NOT LIKE 'Fase 0%' AND ${properties.metadata}->>'phase' NOT LIKE '%Fase 11%' AND ${properties.metadata}->>'phase' NOT LIKE '%Churn%' AND ${properties.metadata}->>'phase' NOT LIKE '%Exclu%'`)),
       db.select({ count: count() }).from(properties).where(
-        w(dateCond, sql`${properties.metadata}->>'labels' LIKE '%Stand-By%'`)
+        w(dateCond, sql`${properties.metadata}->>'labels' LIKE '%Stand-By%' AND ${properties.metadata}->>'phase' NOT LIKE '%Fase 11%' AND ${properties.metadata}->>'phase' NOT LIKE '%Churn%' AND ${properties.metadata}->>'phase' NOT LIKE '%Exclu%'`)
       ),
       db.select({ count: count() }).from(properties).where(
         w(dateCond, sql`(${properties.metadata}->>'late')::boolean = true`)

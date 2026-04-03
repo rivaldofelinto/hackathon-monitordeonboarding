@@ -270,6 +270,9 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
                     const due = p.metadata?.duedate
                       ? new Date(p.metadata.duedate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
                       : null
+                    const days = p.metadata?.phase_started_at
+                      ? Math.floor((Date.now() - new Date(p.metadata.phase_started_at).getTime()) / 86400000)
+                      : null
                     return (
                       <button
                         key={p.id}
@@ -282,7 +285,8 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
                               {p.metadata?.title || p.codigo_imovel}
                             </p>
                             <p className="text-xs text-slate-500 mt-0.5">
-                              {due ? `Vence ${due}` : '—'}
+                              {days !== null ? `${days} dias na fase` : '—'}
+                              {due && <span className="ml-2 text-red-500 font-medium">· Vence {due}</span>}
                             </p>
                           </div>
                           <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
@@ -314,6 +318,9 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
                     const due = p.metadata?.duedate
                       ? new Date(p.metadata.duedate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
                       : null
+                    const days = p.metadata?.phase_started_at
+                      ? Math.floor((Date.now() - new Date(p.metadata.phase_started_at).getTime()) / 86400000)
+                      : null
                     return (
                       <button
                         key={p.id}
@@ -326,7 +333,8 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
                               {p.metadata?.title || p.codigo_imovel}
                             </p>
                             <p className="text-xs text-slate-500 mt-0.5">
-                              {due ? `Vence ${due}` : '—'}
+                              {days !== null ? `${days} dias na fase` : '—'}
+                              {due && <span className="ml-2 text-red-500 font-medium">· Vence {due}</span>}
                             </p>
                           </div>
                           <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>

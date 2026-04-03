@@ -4,6 +4,8 @@ import { db } from '@/db/client'
 import { properties, stages, activities } from '@/db/schema'
 import { eq, desc, sql } from 'drizzle-orm'
 
+export const dynamic = 'force-dynamic'
+
 const PIPE_MAE = sql`${properties.metadata}->>'pipe' = '1'`
 
 async function getProperties() {

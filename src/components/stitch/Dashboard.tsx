@@ -25,6 +25,7 @@ interface PropertyRecord {
     late?: boolean
     overdue?: boolean
     done?: boolean
+    anfitriao?: string
   } | null
   stages: StageRecord[]
   created_at: string
@@ -170,7 +171,7 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
       </header>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Total */}
         <div className="md:col-span-2 bg-gradient-to-br from-primary to-blue-900 p-8 rounded-xl text-white flex flex-col justify-between">
           <div>
@@ -183,20 +184,7 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
             </h3>
           </div>
           <p className="text-white/60 text-sm mt-6">
-            {activeToShow.toLocaleString('pt-BR')} ativos · {standbyToShow.toLocaleString('pt-BR')} em stand-by
-          </p>
-        </div>
-
-        {/* Stand-By */}
-        <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-xl">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-yellow-500" />
-            <p className="text-yellow-700 font-semibold uppercase tracking-widest text-xs">
-              Stand-By
-            </p>
-          </div>
-          <p className="text-3xl font-extrabold text-yellow-900">
-            {standbyToShow.toLocaleString('pt-BR')}
+            {activeToShow.toLocaleString('pt-BR')} aptos a implantar
           </p>
         </div>
 
@@ -273,6 +261,11 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
                       {p.metadata?.title || p.codigo_imovel}
                     </p>
                     <p className="text-xs text-slate-500 truncate">{p.metadata?.phase}</p>
+                    {p.metadata?.phase?.includes('Fase 3') && p.metadata?.anfitriao && (
+                      <p className="text-xs text-blue-600 font-medium truncate mt-0.5">
+                        Anfitrião: {p.metadata.anfitriao}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full border ${SLA_BADGE.red}`}>

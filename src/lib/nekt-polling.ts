@@ -209,6 +209,8 @@ interface NektRawRow {
   done: boolean;
   late: boolean;
   overdue: boolean;
+  anfitriao_responsavel?: string;
+  anfitriao_escolhido?: string;
 }
 
 type NektRawResult = Record<string, { rows: NektRawRow[]; tableName: string }>;
@@ -282,7 +284,7 @@ async function fetchNektRaw(): Promise<NektRawResult> {
     try {
       const isScd2 = tableName === SCD2_PIPE1_TABLE;
       const sqlQuery = isScd2
-        ? `SELECT DISTINCT title, currentphasename AS current_phase, labels, done, late, overdue FROM nekt_trusted.${tableName} WHERE availableuntil IS NULL AND done = false`
+        ? `SELECT DISTINCT title, currentphasename AS current_phase, labels, done, late, overdue, anfitriao_responsavel, anfitriao_escolhido FROM nekt_trusted.${tableName} WHERE availableuntil IS NULL AND done = false`
         : `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} WHERE done = false LIMIT 5000`;
 
       const response = await fetch(nektUrl, {
@@ -311,7 +313,7 @@ async function fetchNektRaw(): Promise<NektRawResult> {
           const parsed = JSON.parse(text) as { columns?: string[]; data?: string[][] };
           const rows: NektRawRow[] = (parsed.data ?? []).map((row) => {
             if (isScd2) {
-              return { title: row[0] ?? "", current_phase: row[1] ?? "", labels: row[2] ?? "", done: row[3] === "true", late: row[4] === "true", overdue: row[5] === "true" };
+              return { title: row[0] ?? "", current_phase: row[1] ?? "", labels: row[2] ?? "", done: row[3] === "true", late: row[4] === "true", overdue: row[5] === "true", anfitriao_responsavel: row[6] ?? "", anfitriao_escolhido: row[7] ?? "" };
             }
             return { title: row[0] ?? "", current_phase: row[1] ?? "", done: row[2] === "true", late: row[3] === "true", overdue: row[4] === "true" };
           });
@@ -357,6 +359,10 @@ async function upsertProperties(rawData: NektRawResult): Promise<number> {
       };
       if (row.labels) patch.labels = row.labels;
       if (phase) patch.phase = phase;
+      const anfitriao = (row.anfitriao_responsavel && row.anfitriao_responsavel !== 'À Definir')
+        ? row.anfitriao_responsavel
+        : (row.anfitriao_escolhido ?? "");
+      if (anfitriao && anfitriao !== 'À Definir') patch.anfitriao = anfitriao;
 
       // Composite key: "MSU0301_1" — prevents cross-pipe overwrite for same property
       const compositeKey = `${String(row.title)}_${pipeId}`;

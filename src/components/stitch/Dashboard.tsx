@@ -198,7 +198,6 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
           <p className="text-3xl font-extrabold text-yellow-900">
             {standbyToShow.toLocaleString('pt-BR')}
           </p>
-          <p className="text-yellow-600 text-xs mt-2">Em pausa ou reforma</p>
         </div>
 
         {/* SLA Alerta */}

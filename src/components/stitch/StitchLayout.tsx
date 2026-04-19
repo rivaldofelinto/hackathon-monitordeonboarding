@@ -9,6 +9,7 @@ import { DateFilterProvider } from '@/lib/date-filter-context'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/calendario', label: 'Calendário' },
+  { href: '/imoveis', label: 'Imóveis' },
 ]
 
 export function StitchLayout({ children }: { children: React.ReactNode }) {

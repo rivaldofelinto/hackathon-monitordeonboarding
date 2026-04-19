@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Warnings } from './Warnings'
 import { useDateFilter } from '@/lib/date-filter-context'
 
@@ -292,9 +293,17 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
                           <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
                         </div>
                         {isOpen && (
-                          <p className="text-xs text-blue-600 font-medium mt-2 pt-2 border-t border-blue-100">
-                            Anfitrião: {p.metadata?.anfitriao || 'Não definido'}
-                          </p>
+                          <div className="mt-2 pt-2 border-t border-blue-100 space-y-1">
+                            <p className="text-xs text-blue-700 font-medium">
+                              Anfitrião: {p.metadata?.anfitriao || 'Não definido'}
+                            </p>
+                            <Link
+                              href={`/imoveis/${p.id}`}
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-semibold"
+                            >
+                              Ver detalhes →
+                            </Link>
+                          </div>
                         )}
                       </button>
                     )
@@ -340,9 +349,17 @@ function DashboardInner({ initialData }: { initialData: PropertyRecord[] }) {
                           <span className="text-slate-400 text-xs ml-2">{isOpen ? '▲' : '▼'}</span>
                         </div>
                         {isOpen && (
-                          <p className="text-xs text-amber-700 font-medium mt-2 pt-2 border-t border-amber-100">
-                            {p.metadata?.tipo_de_adequacao || 'Tipo não definido'}
-                          </p>
+                          <div className="mt-2 pt-2 border-t border-amber-100 space-y-1">
+                            <p className="text-xs text-amber-700 font-medium">
+                              {p.metadata?.tipo_de_adequacao || 'Tipo não definido'}
+                            </p>
+                            <Link
+                              href={`/imoveis/${p.id}`}
+                              className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-semibold"
+                            >
+                              Ver detalhes →
+                            </Link>
+                          </div>
                         )}
                       </button>
                     )

@@ -28,6 +28,7 @@ export interface NormalizedStage {
   stage_name: string;
   status: "pending" | "in_progress" | "completed" | "blocked";
   sla_color: "green" | "yellow" | "red";
+  due_date?: string; // usado no computeSlaColor
   started_at: string;
   completed_at?: string;
   blocked_reason?: string;
@@ -81,22 +82,51 @@ export function mapPipefyStatus(
 }
 
 /**
- * Mapeia status para cor SLA
+ * Computes sla_color for a property record.
+ * Used by both the parser (stages table) and nekt-polling (properties metadata).
+ * Priority: due_date > started_at
+ * - completed → green
+ * - due_date: overdue → red | ≤1 dia → yellow | >1 dia → green
+ * - sem due_date (fallback): <2 dias → green | 2-5 → yellow | >5 → red
+ */
+export function computeSlaColor(
+  status: string,
+  dueDate?: string,
+  startedAt?: string
+): "green" | "yellow" | "red" {
+  if (status === "completed" || status === "done") return "green";
+
+  if (dueDate) {
+    const now = new Date();
+    const due = new Date(dueDate);
+    const daysUntil = (due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (daysUntil < 0) return "red";
+    if (daysUntil <= 1) return "yellow";
+    return "green";
+  }
+
+  if (startedAt) {
+    const now = new Date();
+    const started = new Date(startedAt);
+    const days = (now.getTime() - started.getTime()) / (1000 * 60 * 60 * 24);
+    if (days < 2) return "green";
+    if (days < 5) return "yellow";
+    return "red";
+  }
+
+  return "green";
+}
+
+/**
+ * Backward-compatible alias for existing callers (tests, etc.).
  * Green: < 2 dias | Yellow: 2-5 dias | Red: > 5 dias
  */
 export function calculateSLAColor(
   startedAt: string,
   status: string
 ): "green" | "yellow" | "red" {
-  if (status === "completed") return "green";
-
-  const now = new Date();
-  const started = new Date(startedAt);
-  const days = (now.getTime() - started.getTime()) / (1000 * 60 * 60 * 24);
-
-  if (days < 2) return "green";
-  if (days < 5) return "yellow";
-  return "red";
+  return computeSlaColor(status, undefined, startedAt);
 }
 
 /**
@@ -124,7 +154,7 @@ export function parseCard(
   }
 
   const status = mapPipefyStatus(card.current_phase.name);
-  const sla_color = calculateSLAColor(card.created_at, status);
+  const sla_color = computeSlaColor(status, card.due_date, card.created_at);
 
   return {
     codigo_imovel,
@@ -132,6 +162,7 @@ export function parseCard(
     stage_name: `${pipelineConfig.name} - ${card.current_phase.name}`,
     status,
     sla_color,
+    due_date: card.due_date,
     started_at: card.created_at,
     completed_at: status === "completed" ? card.updated_at : undefined,
     blocked_reason:

@@ -5,8 +5,10 @@
  */
 
 import { db } from "@/db/client";
-import { sync_log } from "@/db/schema";
+import { sync_log, properties } from "@/db/schema";
+import { sql } from "drizzle-orm";
 import { parseAllPipelines } from "./pipefy-parser";
+import { computeSlaColor } from "./pipefy-parser";
 import type { PipefyCard } from "./pipefy-parser";
 
 interface SyncConfig {
@@ -36,14 +38,27 @@ interface SyncResult {
  * Real Pipefy onboarding pipes in Nekt data warehouse
  * Tables confirmed via MCP: SELECT table_name FROM information_schema.tables WHERE table_schema = 'nekt_trusted'
  */
+const SCD2_PIPE1_TABLE = "pipefy_szs_all_cards_303781436_scd2_colunas_expandidas";
+
 const ONBOARDING_PIPES: Record<string, string> = {
   "PIPE 0 - Onboarding proprietário": "pipefy_szs_all_cards_303807224",
-  "PIPE 1 - Implantação": "pipefy_szs_all_cards_303781436",
+  "PIPE 1 - Implantação": SCD2_PIPE1_TABLE,
   "PIPE 2 - Adequação": "pipefy_szs_all_cards_303828424",
   "PIPE 3 - Vistorias": "pipefy_szs_all_cards_302290867",
   "PIPE 4 - Fotos Profissionais": "pipefy_szs_all_cards_302290880",
   "PIPE 5 - Criação de Anúncios": "pipefy_szs_all_cards_303024105",
   "PIPE 5.1 - Atualização de Anúncios": "pipefy_szs_all_cards_303024130",
+};
+
+const PIPE_IDS: Record<string, string> = {
+  "pipefy_szs_all_cards_303807224": "0",
+  "pipefy_szs_all_cards_303781436": "1",
+  [SCD2_PIPE1_TABLE]: "1",
+  "pipefy_szs_all_cards_303828424": "2",
+  "pipefy_szs_all_cards_302290867": "3",
+  "pipefy_szs_all_cards_302290880": "4",
+  "pipefy_szs_all_cards_303024105": "5",
+  "pipefy_szs_all_cards_303024130": "5.1",
 };
 
 /**
@@ -186,6 +201,212 @@ async function retryWithBackoff<T>(
   }
 
   throw lastError;
+}
+
+interface NektRawRow {
+  title: string;
+  current_phase: string;
+  labels?: string;
+  done: boolean;
+  late: boolean;
+  overdue: boolean;
+  anfitriao_responsavel?: string;
+  anfitriao_escolhido?: string;
+  phase_started_at?: string;
+  tipo_de_adequacao?: string;
+  duedate?: string;
+  data_agendamento_vistoria?: string;
+}
+
+type NektRawResult = Record<string, { rows: NektRawRow[]; tableName: string }>;
+
+/**
+ * Parse MCP HTTP Streamable SSE stream into tool result text
+ */
+function parseSseText(text: string): string | null {
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("data: ")) continue;
+    try {
+      const msg = JSON.parse(line.slice(6));
+      if (msg.result?.content?.[0]?.text) return msg.result.content[0].text;
+    } catch { /* skip */ }
+  }
+  return null;
+}
+
+/**
+ * Initialize MCP HTTP Streamable session, return session ID
+ */
+async function initMcpSession(nektUrl: string, nektToken: string): Promise<string | null> {
+  const response = await fetch(nektUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${nektToken}`,
+      "Accept": "application/json, text/event-stream",
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "initialize",
+      params: {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "monitor-onboarding", version: "1.0" },
+      },
+      id: 0,
+    }),
+  });
+  if (!response.ok) {
+    console.error(`[NektRaw] MCP init failed: ${response.status}`);
+    return null;
+  }
+  const sessionId = response.headers.get("mcp-session-id");
+  if (!sessionId) {
+    console.error("[NektRaw] MCP init: no session ID in response headers");
+    return null;
+  }
+  // Drain the SSE body to avoid connection leaks
+  await response.text().catch(() => {});
+  return sessionId;
+}
+
+async function fetchNektRaw(): Promise<NektRawResult> {
+  const nektUrl = process.env.NEKT_API_URL;
+  const nektToken = process.env.NEKT_API_KEY;
+  const result: NektRawResult = {};
+
+  if (!nektUrl || !nektToken) return result;
+
+  // MCP HTTP Streamable requires session initialization before tools/call
+  const sessionId = await initMcpSession(nektUrl, nektToken);
+  if (!sessionId) {
+    console.error("[NektRaw] Could not initialize MCP session, aborting sync");
+    return result;
+  }
+  console.log(`[NektRaw] MCP session: ${sessionId}`);
+
+  for (const [pipeName, tableName] of Object.entries(ONBOARDING_PIPES)) {
+    try {
+      const isScd2 = tableName === SCD2_PIPE1_TABLE;
+      const sqlQuery = isScd2
+        ? `SELECT DISTINCT title, currentphasename AS current_phase, labels, done, late, overdue, anfitriao_responsavel, anfitriao_escolhido, startedcurrentphaseat, tipo_de_adequacao, duedate, data_de_agendamento_da_vistoria FROM nekt_trusted.${tableName} WHERE availableuntil IS NULL AND done = false`
+        : `SELECT title, current_phase, done, late, overdue FROM nekt_trusted.${tableName} WHERE done = false LIMIT 5000`;
+
+      const response = await fetch(nektUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${nektToken}`,
+          "Accept": "application/json, text/event-stream",
+          "Mcp-Session-Id": sessionId,
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "tools/call",
+          params: {
+            name: "execute_sql",
+            arguments: { sql_query: sqlQuery },
+          },
+          id: 1,
+        }),
+      });
+
+      if (response.ok) {
+        const rawText = await response.text();
+        const text = parseSseText(rawText);
+        if (text) {
+          const parsed = JSON.parse(text) as { columns?: string[]; data?: string[][] };
+          const rows: NektRawRow[] = (parsed.data ?? []).map((row) => {
+            if (isScd2) {
+              return { title: row[0] ?? "", current_phase: row[1] ?? "", labels: row[2] ?? "", done: row[3] === "true", late: row[4] === "true", overdue: row[5] === "true", anfitriao_responsavel: row[6] ?? "", anfitriao_escolhido: row[7] ?? "", phase_started_at: row[8] ?? "", tipo_de_adequacao: row[9] ?? "", duedate: row[10] ?? "", data_agendamento_vistoria: row[11] ?? "" };
+            }
+            return { title: row[0] ?? "", current_phase: row[1] ?? "", done: row[2] === "true", late: row[3] === "true", overdue: row[4] === "true" };
+          });
+          result[pipeName] = { rows, tableName };
+          console.log(`[NektRaw] ${pipeName} → ${rows.length} active rows`);
+        } else {
+          console.error(`[NektRaw] ${pipeName} → empty MCP response`);
+          result[pipeName] = { rows: [], tableName };
+        }
+      } else {
+        const body = await response.text().catch(() => "");
+        console.error(`[NektRaw] ${pipeName} → ${response.status}: ${body.slice(0, 200)}`);
+        result[pipeName] = { rows: [], tableName };
+      }
+    } catch (err) {
+      console.error(`[NektRaw] ${pipeName} → exception:`, err);
+      result[pipeName] = { rows: [], tableName };
+    }
+  }
+  return result;
+}
+
+async function upsertProperties(rawData: NektRawResult): Promise<number> {
+  // Use Map to deduplicate by codigo_imovel — same property can appear in multiple pipes
+  // Last pipe processed wins (pipes are ordered: 0→5.1, so pipe-specific data overwrites pipe mãe)
+  const seen = new Map<string, { codigo_imovel: string; endereco: string; cidade: string; uf: string; metadata: unknown }>();
+
+  for (const [pipeName, { rows, tableName }] of Object.entries(rawData)) {
+    const pipeId = PIPE_IDS[tableName] ?? "";
+    for (const row of rows) {
+      if (!row.title || String(row.title).length > 46) continue;
+      const rawPhase = String(row.current_phase ?? "");
+      const match = rawPhase.match(/name=([^,}]+)/);
+      const phase = (match?.[1] ?? rawPhase).trim();
+
+      const patch: Record<string, unknown> = {
+        pipe: pipeId,
+        pipe_name: pipeName,
+        title: String(row.title),
+        done: Boolean(row.done),
+        late: Boolean(row.late),
+        overdue: Boolean(row.overdue),
+      };
+      if (row.labels) patch.labels = row.labels;
+      if (phase) patch.phase = phase;
+      if (row.phase_started_at) patch.phase_started_at = row.phase_started_at;
+      if (row.tipo_de_adequacao) patch.tipo_de_adequacao = row.tipo_de_adequacao;
+      if (row.duedate) patch.duedate = row.duedate;
+      if (row.data_agendamento_vistoria) patch.data_agendamento_vistoria = row.data_agendamento_vistoria;
+      const anfitriao = (row.anfitriao_responsavel && row.anfitriao_responsavel !== 'À Definir')
+        ? row.anfitriao_responsavel
+        : (row.anfitriao_escolhido ?? "");
+      if (anfitriao && anfitriao !== 'À Definir') patch.anfitriao = anfitriao;
+
+      // computeSlaColor(dueDate, startedAt) → per-pipe sla_color
+      // dueDate/startedAt from SCD2 pipe mãe; fallback green for other pipes
+      patch.sla_color = computeSlaColor(
+        String(row.done),
+        row.duedate,
+        row.phase_started_at
+      );
+
+      // Composite key: "MSU0301_1" — prevents cross-pipe overwrite for same property
+      const compositeKey = `${String(row.title)}_${pipeId}`;
+      seen.set(compositeKey, {
+        codigo_imovel: compositeKey,
+        endereco: "",
+        cidade: "",
+        uf: "",
+        metadata: patch,
+      });
+    }
+  }
+
+  const mapped = Array.from(seen.values());
+
+  for (let i = 0; i < mapped.length; i += 200) {
+    await db
+      .insert(properties)
+      .values(mapped.slice(i, i + 200))
+      .onConflictDoUpdate({
+        target: properties.codigo_imovel,
+        // Merge: preserva campos existentes (link_pipefy, link_fotos, turno) e atualiza o patch
+        set: { metadata: sql`${properties.metadata} || excluded.metadata`, updated_at: sql`now()` },
+      });
+  }
+
+  return mapped.length;
 }
 
 /**

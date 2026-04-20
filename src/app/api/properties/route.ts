@@ -57,6 +57,17 @@ export async function GET(request: NextRequest) {
           .from(stages)
           .where(eq(stages.property_id, prop.id));
 
+        // Map stages: add due_date from metadata.duedate (set by nekt-polling at sync time)
+        const propStagesWithDueDate = propStages.map((s) => {
+          // duedate lives in the parent property's metadata jsonb, keyed by pipe
+          // We propagate it as due_date on the stage so StageCard can use computeLocalSlaColor
+          const metaDueDate = (prop.metadata as Record<string, unknown>)?.duedate as string | undefined
+          return {
+            ...s,
+            due_date: metaDueDate ?? null,
+          }
+        })
+
         // Buscar atividades mais recentes (últimas 10 por propriedade)
         const propActivities = await db
           .select()
@@ -67,14 +78,14 @@ export async function GET(request: NextRequest) {
 
         return {
           ...prop,
-          stages: propStages,
+          stages: propStagesWithDueDate,
           activities: propActivities,
-          stage_count: propStages.length,
-          completed_stages: propStages.filter((s) => s.status === "completed")
+          stage_count: propStagesWithDueDate.length,
+          completed_stages: propStagesWithDueDate.filter((s) => s.status === "completed")
             .length,
-          blocked_stages: propStages.filter((s) => s.status === "blocked")
+          blocked_stages: propStagesWithDueDate.filter((s) => s.status === "blocked")
             .length,
-          sla_status: propStages.reduce(
+          sla_status: propStagesWithDueDate.reduce(
             (acc, stage) => {
               if (stage.sla_color === "red") acc.red += 1;
               else if (stage.sla_color === "yellow") acc.yellow += 1;
